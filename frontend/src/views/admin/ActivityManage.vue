@@ -1,0 +1,438 @@
+<template>
+  <div class="activity-manage-page">
+    <div class="page-header">
+      <h1>活动管理</h1>
+      <el-button type="primary" @click="openActivityDialog()">
+        <el-icon><Plus /></el-icon> 创建活动
+      </el-button>
+    </div>
+    
+    <!-- 活动列表 -->
+    <el-card>
+      <template #header>
+        <div class="card-header">
+          <el-select v-model="selectedClubId" placeholder="选择社团" clearable @change="loadActivities">
+            <el-option v-for="club in myClubs" :key="club.id" :label="club.name" :value="club.id" />
+          </el-select>
+          <el-input v-model="searchKeyword" placeholder="搜索活动" style="width: 200px" clearable />
+        </div>
+      </template>
+      
+      <el-table :data="filteredActivities" v-loading="loading">
+        <el-table-column label="活动信息" min-width="250">
+          <template #default="{ row }">
+            <div class="activity-cell">
+              <img :src="row.coverImage || '/default-cover.jpg'" class="cover-thumb" />
+              <div class="activity-info">
+                <h4>{{ row.title }}</h4>
+                <span class="club-name">{{ row.clubName }}</span>
+              </div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column label="活动时间" width="200">
+          <template #default="{ row }">
+            <div class="time-cell">
+              <div>{{ formatDateTime(row.startTime) }}</div>
+              <div class="end-time">至 {{ formatDateTime(row.endTime) }}</div>
+            </div>
+          </template>
+        </el-table-column>
+        <el-table-column prop="location" label="地点" width="120" />
+        <el-table-column label="报名" width="100">
+          <template #default="{ row }">
+            {{ row.registrationCount || 0 }} / {{ row.maxParticipants || '不限' }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="getStatusType(row)">{{ getStatusText(row) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="200" fixed="right">
+          <template #default="{ row }">
+            <el-button type="primary" text size="small" @click="openActivityDialog(row)">编辑</el-button>
+            <el-button type="info" text size="small" @click="viewParticipants(row)">参与者</el-button>
+            <el-button type="danger" text size="small" @click="deleteActivity(row)">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+    
+    <!-- 活动编辑对话框 -->
+    <el-dialog 
+      v-model="showActivityDialog" 
+      :title="editingActivity ? '编辑活动' : '创建活动'"
+      width="700px"
+    >
+      <el-form 
+        ref="activityFormRef"
+        :model="activityForm" 
+        :rules="activityRules"
+        label-width="100px"
+      >
+        <el-form-item label="所属社团" prop="clubId">
+          <el-select v-model="activityForm.clubId" placeholder="请选择社团" style="width: 100%">
+            <el-option v-for="club in myClubs" :key="club.id" :label="club.name" :value="club.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="活动标题" prop="title">
+          <el-input v-model="activityForm.title" placeholder="请输入活动标题" />
+        </el-form-item>
+        <el-form-item label="活动简介" prop="description">
+          <el-input v-model="activityForm.description" type="textarea" :rows="4" placeholder="请输入活动简介" />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="开始时间" prop="startTime">
+              <el-date-picker
+                v-model="activityForm.startTime"
+                type="datetime"
+                placeholder="选择开始时间"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="结束时间" prop="endTime">
+              <el-date-picker
+                v-model="activityForm.endTime"
+                type="datetime"
+                placeholder="选择结束时间"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-form-item label="报名截止" prop="registrationDeadline">
+          <el-date-picker
+            v-model="activityForm.registrationDeadline"
+            type="datetime"
+            placeholder="选择报名截止时间"
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="活动地点" prop="location">
+              <el-input v-model="activityForm.location" placeholder="请输入活动地点" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="人数限制">
+              <el-input-number v-model="activityForm.maxParticipants" :min="0" placeholder="0表示不限" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+      </el-form>
+      <template #footer>
+        <el-button @click="showActivityDialog = false">取消</el-button>
+        <el-button type="primary" :loading="savingActivity" @click="saveActivity">
+          {{ editingActivity ? '保存' : '创建' }}
+        </el-button>
+      </template>
+    </el-dialog>
+    
+    <!-- 参与者对话框 -->
+    <el-dialog v-model="showParticipantsDialog" title="参与者列表" width="600px">
+      <el-table :data="participants" v-loading="participantsLoading">
+        <el-table-column label="头像" width="80">
+          <template #default="{ row }">
+            <el-avatar :size="40" :src="row.userAvatar">{{ row.userName?.charAt(0) }}</el-avatar>
+          </template>
+        </el-table-column>
+        <el-table-column prop="userName" label="姓名" />
+        <el-table-column prop="userEmail" label="邮箱" />
+        <el-table-column label="报名时间">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="签到" width="80">
+          <template #default="{ row }">
+            <el-tag :type="row.checkedIn ? 'success' : 'info'">
+              {{ row.checkedIn ? '已签到' : '未签到' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="participants.length === 0 && !participantsLoading" description="暂无参与者" />
+    </el-dialog>
+  </div>
+</template>
+
+<script setup>
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { getMyCreatedClubs } from '@/api/club'
+import { 
+  getClubActivities, 
+  createActivity, 
+  updateActivity, 
+  deleteActivity as deleteActivityApi,
+  getActivityParticipants
+} from '@/api/activity'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+
+const router = useRouter()
+const userStore = useUserStore()
+
+const loading = ref(false)
+const myClubs = ref([])
+const activities = ref([])
+const selectedClubId = ref('')
+const searchKeyword = ref('')
+
+const filteredActivities = computed(() => {
+  let result = activities.value
+  if (searchKeyword.value) {
+    const keyword = searchKeyword.value.toLowerCase()
+    result = result.filter(a => a.title?.toLowerCase().includes(keyword))
+  }
+  return result
+})
+
+const getStatusType = (activity) => {
+  const now = new Date()
+  const start = new Date(activity.startTime)
+  const end = new Date(activity.endTime)
+  const regEnd = new Date(activity.registrationDeadline)
+  
+  if (now < regEnd) return 'success'
+  if (now >= start && now <= end) return 'warning'
+  return 'info'
+}
+
+const getStatusText = (activity) => {
+  const now = new Date()
+  const start = new Date(activity.startTime)
+  const end = new Date(activity.endTime)
+  const regEnd = new Date(activity.registrationDeadline)
+  
+  if (now < regEnd) return '报名中'
+  if (now < start) return '即将开始'
+  if (now >= start && now <= end) return '进行中'
+  return '已结束'
+}
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return '-'
+  return new Date(dateStr).toLocaleString('zh-CN', {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+const loadMyClubs = async () => {
+  try {
+    const res = await getMyCreatedClubs()
+    myClubs.value = res.data || []
+    if (myClubs.value.length > 0 && !selectedClubId.value) {
+      selectedClubId.value = myClubs.value[0].id
+      loadActivities()
+    }
+  } catch (e) {
+    console.error('加载社团失败', e)
+  }
+}
+
+const loadActivities = async () => {
+  if (!selectedClubId.value) {
+    activities.value = []
+    return
+  }
+  
+  loading.value = true
+  try {
+    const res = await getClubActivities(selectedClubId.value)
+    activities.value = res.data?.content || res.data || []
+  } catch (e) {
+    console.error('加载活动失败', e)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 活动编辑
+const showActivityDialog = ref(false)
+const activityFormRef = ref(null)
+const editingActivity = ref(null)
+const savingActivity = ref(false)
+
+const activityForm = reactive({
+  clubId: '',
+  title: '',
+  description: '',
+  startTime: null,
+  endTime: null,
+  registrationDeadline: null,
+  location: '',
+  maxParticipants: 0
+})
+
+const activityRules = {
+  clubId: [{ required: true, message: '请选择社团', trigger: 'change' }],
+  title: [{ required: true, message: '请输入活动标题', trigger: 'blur' }],
+  startTime: [{ required: true, message: '请选择开始时间', trigger: 'change' }],
+  endTime: [{ required: true, message: '请选择结束时间', trigger: 'change' }],
+  registrationDeadline: [{ required: true, message: '请选择报名截止时间', trigger: 'change' }],
+  location: [{ required: true, message: '请输入活动地点', trigger: 'blur' }]
+}
+
+const openActivityDialog = (activity = null) => {
+  editingActivity.value = activity
+  if (activity) {
+    Object.assign(activityForm, {
+      clubId: activity.clubId,
+      title: activity.title,
+      description: activity.description || '',
+      startTime: new Date(activity.startTime),
+      endTime: new Date(activity.endTime),
+      registrationDeadline: new Date(activity.registrationDeadline),
+      location: activity.location,
+      maxParticipants: activity.maxParticipants || 0
+    })
+  } else {
+    Object.assign(activityForm, {
+      clubId: selectedClubId.value,
+      title: '',
+      description: '',
+      startTime: null,
+      endTime: null,
+      registrationDeadline: null,
+      location: '',
+      maxParticipants: 0
+    })
+  }
+  showActivityDialog.value = true
+}
+
+const saveActivity = async () => {
+  const valid = await activityFormRef.value.validate().catch(() => false)
+  if (!valid) return
+  
+  savingActivity.value = true
+  try {
+    const data = {
+      ...activityForm,
+      startTime: activityForm.startTime?.toISOString(),
+      endTime: activityForm.endTime?.toISOString(),
+      registrationDeadline: activityForm.registrationDeadline?.toISOString(),
+      maxParticipants: activityForm.maxParticipants || null
+    }
+    
+    if (editingActivity.value) {
+      await updateActivity(editingActivity.value.id, data)
+    } else {
+      await createActivity(data)
+    }
+    
+    ElMessage.success(editingActivity.value ? '保存成功' : '创建成功')
+    showActivityDialog.value = false
+    loadActivities()
+  } catch (e) {
+    console.error('保存活动失败', e)
+  } finally {
+    savingActivity.value = false
+  }
+}
+
+const deleteActivity = async (activity) => {
+  try {
+    await ElMessageBox.confirm(`确定要删除活动"${activity.title}"吗？`, '提示', { type: 'warning' })
+    await deleteActivityApi(activity.id)
+    ElMessage.success('已删除')
+    loadActivities()
+  } catch (e) {
+    if (e !== 'cancel') {
+      console.error('删除活动失败', e)
+    }
+  }
+}
+
+// 参与者
+const showParticipantsDialog = ref(false)
+const participants = ref([])
+const participantsLoading = ref(false)
+
+const viewParticipants = async (activity) => {
+  showParticipantsDialog.value = true
+  participantsLoading.value = true
+  try {
+    const res = await getActivityParticipants(activity.id)
+    participants.value = res.data?.content || res.data || []
+  } catch (e) {
+    console.error('加载参与者失败', e)
+  } finally {
+    participantsLoading.value = false
+  }
+}
+
+onMounted(() => {
+  if (!userStore.isLoggedIn) {
+    ElMessage.warning('请先登录')
+    router.push('/login')
+    return
+  }
+  loadMyClubs()
+})
+</script>
+
+<style scoped>
+.activity-manage-page {
+  padding-bottom: 40px;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-header h1 {
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.activity-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cover-thumb {
+  width: 80px;
+  height: 50px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+
+.activity-info h4 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.club-name {
+  font-size: 12px;
+  color: #909399;
+}
+
+.time-cell {
+  font-size: 13px;
+}
+
+.end-time {
+  color: #909399;
+  font-size: 12px;
+}
+</style>
