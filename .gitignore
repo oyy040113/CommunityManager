@@ -1,2 +1,17 @@
-#node_modules
+# Node
 */node_modules/
+
+# Environment secrets (keep .env.example in version control)
+.env
+
+# Docker runtime data
+data/
+uploads/
+
+# Build outputs
+*/target/
+*/dist/
+
+# IDE
+.idea/
+*.iml

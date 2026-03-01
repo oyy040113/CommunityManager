@@ -44,11 +44,18 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         
-        <!-- MySQL Driver -->
+        <!-- SQLite Driver -->
         <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
+            <groupId>org.xerial</groupId>
+            <artifactId>sqlite-jdbc</artifactId>
+            <version>3.45.1.0</version>
             <scope>runtime</scope>
+        </dependency>
+
+        <!-- Hibernate SQLite dialect -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-community-dialects</artifactId>
         </dependency>
         
         <!-- JWT -->
@@ -115,12 +122,7 @@
             <scope>test</scope>
         </dependency>
         
-        <!-- H2 Database for Development -->
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
-        </dependency>
+
     </dependencies>
     
     <build>

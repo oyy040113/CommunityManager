@@ -1,0 +1,36 @@
+services:
+  # ── Spring Boot Backend ──────────────────────────────────────────────────────
+  backend:
+    image: registry.cn-hangzhou.aliyuncs.com/fjrcn/club_manage_backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    volumes:
+      # SQLite database file
+      - ./data:/data
+      # Uploaded files (avatars, club logos, activity covers …)
+      - ./uploads:/app/uploads
+    expose:
+      - "8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/api/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── Nginx (static SPA + reverse proxy) ──────────────────────────────────────
+  nginx:
+    image: registry.cn-hangzhou.aliyuncs.com/fjrcn/club_manage_frontend:latest
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
