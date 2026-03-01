@@ -12,16 +12,16 @@
               :http-request="uploadAvatar"
             >
               <el-avatar :size="100" :src="userStore.user?.avatar">
-                {{ userStore.user?.name?.charAt(0) }}
+                {{ (userStore.user?.realName || userStore.user?.name)?.charAt(0) }}
               </el-avatar>
               <div class="avatar-overlay">
                 <el-icon><Camera /></el-icon>
               </div>
             </el-upload>
-            <h2>{{ userStore.user?.name }}</h2>
+            <h2>{{ userStore.user?.realName || userStore.user?.name }}</h2>
             <p class="user-email">{{ userStore.user?.email }}</p>
-            <el-tag :type="userStore.user?.role === 'LEADER' ? 'warning' : 'info'">
-              {{ userStore.user?.role === 'LEADER' ? '社团负责人' : '普通成员' }}
+            <el-tag :type="getRoleTagType(userStore.user?.role)">
+              {{ getRoleLabel(userStore.user?.role) }}
             </el-tag>
           </div>
           
@@ -141,6 +141,15 @@ const passwordFormRef = ref(null)
 const saving = ref(false)
 const changingPassword = ref(false)
 
+const roleMap = {
+  ADMIN: { label: '超级管理员', type: 'danger' },
+  CLUB_LEADER: { label: '社团负责人', type: 'warning' },
+  TEACHER: { label: '指导老师', type: 'success' },
+  USER: { label: '普通学生', type: 'info' }
+}
+const getRoleLabel = (role) => roleMap[role]?.label || role || '普通学生'
+const getRoleTagType = (role) => roleMap[role]?.type || 'info'
+
 const stats = reactive({
   clubCount: 0,
   activityCount: 0,
@@ -198,7 +207,7 @@ const loadProfile = async () => {
     const data = res.data
     Object.assign(profileForm, {
       username: data.username,
-      name: data.name,
+      name: data.realName || data.name,
       email: data.email,
       phone: data.phone || '',
       studentId: data.studentId || '',
@@ -221,7 +230,7 @@ const saveProfile = async () => {
   saving.value = true
   try {
     await updateProfile({
-      name: profileForm.name,
+      realName: profileForm.name,
       email: profileForm.email,
       phone: profileForm.phone,
       studentId: profileForm.studentId,

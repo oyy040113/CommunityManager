@@ -31,7 +31,7 @@
             </template>
           </el-table-column>
           <el-table-column label="报名时间" width="180">
-            <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+            <template #default="{ row }">{{ formatDateTime(row.registeredAt) }}</template>
           </el-table-column>
           <el-table-column label="操作" width="150" fixed="right">
             <template #default="{ row }">
@@ -219,8 +219,8 @@ const loadData = async () => {
       getMyRegistrations(),
       getMyFeedbacks()
     ])
-    registeredActivities.value = regRes.data || []
-    myFeedbacks.value = fbRes.data || []
+    registeredActivities.value = regRes.data?.content || regRes.data || []
+    myFeedbacks.value = fbRes.data?.content || fbRes.data || []
   } catch (e) {
     console.error('加载数据失败', e)
   } finally {

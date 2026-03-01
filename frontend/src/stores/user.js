@@ -12,7 +12,18 @@ export const useUserStore = defineStore('user', {
   getters: {
     isLoggedIn: (state) => !!state.token,
     isAdmin: (state) => state.user?.role === 'ADMIN',
-    isClubLeader: (state) => state.user?.role === 'CLUB_LEADER'
+    isClubLeader: (state) => state.user?.role === 'CLUB_LEADER',
+    isTeacher: (state) => state.user?.role === 'TEACHER',
+    isClubLeaderOrAdmin: (state) => ['ADMIN', 'CLUB_LEADER'].includes(state.user?.role),
+    isAdminOrTeacher: (state) => ['ADMIN', 'TEACHER'].includes(state.user?.role),
+    userRole: (state) => state.user?.role || 'USER',
+    hasPermission: (state) => (roles) => {
+      if (!state.token || !state.user) return false
+      if (Array.isArray(roles)) {
+        return roles.includes(state.user.role)
+      }
+      return state.user.role === roles
+    }
   },
   
   actions: {
@@ -25,25 +36,26 @@ export const useUserStore = defineStore('user', {
         this.token = token
         this.user = JSON.parse(user)
         this.fetchUnreadCount()
+        this.refreshCurrentUser()
       }
     },
     
     // 登录
     async login(username, password) {
       const res = await login({ username, password })
-      this.setAuth(res.data)
+      await this.setAuth(res.data)
       return res
     },
     
     // 注册
     async register(data) {
       const res = await register(data)
-      this.setAuth(res.data)
+      await this.setAuth(res.data)
       return res
     },
     
     // 设置认证信息
-    setAuth(authData) {
+    async setAuth(authData) {
       this.token = authData.token
       this.user = authData.user
       
@@ -51,6 +63,7 @@ export const useUserStore = defineStore('user', {
       localStorage.setItem('refreshToken', authData.refreshToken)
       localStorage.setItem('user', JSON.stringify(authData.user))
       
+      await this.refreshCurrentUser()
       this.fetchUnreadCount()
     },
     
@@ -81,6 +94,23 @@ export const useUserStore = defineStore('user', {
       } catch (e) {
         console.error('获取未读通知数失败', e)
       }
+    },
+
+    async refreshCurrentUser() {
+      if (!this.token) return
+
+      try {
+        const res = await getCurrentUser()
+        this.user = res.data
+        localStorage.setItem('user', JSON.stringify(this.user))
+      } catch (e) {
+        console.error('获取用户信息失败', e)
+      }
+    },
+
+    // alias for components that call fetchUser
+    async fetchUser() {
+      return this.refreshCurrentUser()
     }
   }
 })

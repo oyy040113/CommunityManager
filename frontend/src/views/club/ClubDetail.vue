@@ -11,7 +11,7 @@
             <h1 class="club-name">{{ club.name }}</h1>
             <div class="club-meta">
               <el-tag :type="getClubTypeTag(club.type)">{{ getClubTypeName(club.type) }}</el-tag>
-              <span class="meta-item"><el-icon><User /></el-icon> 负责人：{{ club.creatorName }}</span>
+              <span class="meta-item"><el-icon><User /></el-icon> 社长：{{ club.leaderName }}</span>
               <span class="meta-item"><el-icon><Calendar /></el-icon> 创建于：{{ formatDate(club.createdAt) }}</span>
             </div>
             <p class="club-purpose">{{ club.purpose }}</p>
@@ -54,8 +54,8 @@
           <el-card class="stat-card">
             <div class="stat-icon" style="background: #e6a23c"><el-icon><TrendCharts /></el-icon></div>
             <div class="stat-content">
-              <span class="stat-value">{{ club.activityScore?.toFixed(1) }}</span>
-              <span class="stat-label">活跃指数</span>
+              <span class="stat-value">{{ club.feedbackCount || 0 }}人 · {{ (club.averageRating || 0).toFixed(1) }}分</span>
+              <span class="stat-label">活动评价</span>
             </div>
           </el-card>
         </el-col>
@@ -110,16 +110,19 @@
                   <el-avatar :size="40" :src="row.userAvatar">{{ row.userName?.charAt(0) }}</el-avatar>
                 </template>
               </el-table-column>
-              <el-table-column prop="userName" label="姓名" />
-              <el-table-column prop="role" label="角色">
+              <el-table-column prop="userName" label="用户名" width="120" />
+              <el-table-column prop="realName" label="真实姓名" width="120" />
+              <el-table-column prop="studentId" label="学号" width="130" />
+              <el-table-column prop="userEmail" label="邮箱" min-width="150" />
+              <el-table-column prop="role" label="角色" width="120">
                 <template #default="{ row }">
-                  <el-tag :type="row.role === 'LEADER' ? 'danger' : row.role === 'CORE' ? 'warning' : 'info'">
+                  <el-tag :type="row.role === 'LEADER' ? 'danger' : row.role === 'TEACHER' ? 'success' : row.role === 'CORE' ? 'warning' : 'info'">
                     {{ getRoleName(row.role) }}
                   </el-tag>
                 </template>
               </el-table-column>
-              <el-table-column prop="position" label="职位" />
-              <el-table-column prop="joinedAt" label="加入时间">
+              <el-table-column prop="position" label="职位" width="120" />
+              <el-table-column prop="joinedAt" label="加入时间" width="120">
                 <template #default="{ row }">{{ formatDate(row.joinedAt) }}</template>
               </el-table-column>
             </el-table>
@@ -201,7 +204,7 @@ const getClubTypeName = (type) => clubTypeMap[type]?.name || type
 const getClubTypeTag = (type) => clubTypeMap[type]?.tag || ''
 
 const getRoleName = (role) => {
-  const map = { LEADER: '负责人', CORE: '核心成员', MEMBER: '普通成员' }
+  const map = { LEADER: '负责人', TEACHER: '指导老师', CORE: '核心成员', MEMBER: '普通成员' }
   return map[role] || role
 }
 

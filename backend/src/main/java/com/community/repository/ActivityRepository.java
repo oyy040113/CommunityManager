@@ -21,6 +21,8 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     
     Page<Activity> findByClubIdAndStatus(Long clubId, Activity.ActivityStatus status, Pageable pageable);
     
+    Page<Activity> findByOrganizerId(Long organizerId, Pageable pageable);
+    
     @Query("SELECT a FROM Activity a WHERE " +
            "(:keyword IS NULL OR a.title LIKE %:keyword% OR a.description LIKE %:keyword%) AND " +
            "(:clubId IS NULL OR a.club.id = :clubId) AND " +
@@ -30,8 +32,22 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
                                     @Param("status") Activity.ActivityStatus status,
                                     Pageable pageable);
     
-    @Query("SELECT a FROM Activity a WHERE a.status = 'PUBLISHED' AND a.registrationDeadline > :now " +
-           "ORDER BY a.startTime ASC")
+    @Query("SELECT a FROM Activity a WHERE " +
+           "(:keyword IS NULL OR a.title LIKE %:keyword% OR a.description LIKE %:keyword%) AND " +
+           "(:clubId IS NULL OR a.club.id = :clubId) AND " +
+           "(:status IS NULL OR a.status = :status) AND " +
+           "(:approvalStatus IS NULL OR a.approvalStatus = :approvalStatus)")
+    Page<Activity> searchActivitiesAdmin(@Param("keyword") String keyword,
+                                          @Param("clubId") Long clubId,
+                                          @Param("status") Activity.ActivityStatus status,
+                                          @Param("approvalStatus") Activity.ApprovalStatus approvalStatus,
+                                          Pageable pageable);
+    
+    @Query("SELECT a FROM Activity a WHERE a.approvalStatus = 'PENDING' ORDER BY a.createdAt DESC")
+    Page<Activity> findPendingActivities(Pageable pageable);
+    
+    @Query("SELECT a FROM Activity a WHERE a.status = 'PUBLISHED' AND a.approvalStatus = 'APPROVED' " +
+           "AND a.registrationDeadline > :now ORDER BY a.startTime ASC")
     Page<Activity> findUpcomingActivities(@Param("now") LocalDateTime now, Pageable pageable);
     
     @Query("SELECT a FROM Activity a WHERE a.club.id = :clubId AND a.status = 'COMPLETED' " +
@@ -42,7 +58,8 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findActivitiesBetweenDates(@Param("start") LocalDateTime start, 
                                                @Param("end") LocalDateTime end);
     
-    @Query("SELECT a FROM Activity a WHERE a.status = 'PUBLISHED' AND a.startTime BETWEEN :start AND :end")
+    @Query("SELECT a FROM Activity a WHERE a.status = 'PUBLISHED' AND a.approvalStatus = 'APPROVED' " +
+           "AND a.startTime BETWEEN :start AND :end")
     List<Activity> findPublishedActivitiesBetweenDates(@Param("start") LocalDateTime start,
                                                         @Param("end") LocalDateTime end);
     
@@ -53,6 +70,12 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
            "a.endTime BETWEEN :start AND :end")
     long countCompletedActivitiesBetweenDates(@Param("start") LocalDateTime start,
                                                @Param("end") LocalDateTime end);
+    
+    @Query("SELECT COUNT(a) FROM Activity a WHERE a.approvalStatus = 'PENDING'")
+    long countPendingActivities();
+
+       @Query("SELECT COUNT(a) FROM Activity a WHERE a.status IN ('PUBLISHED', 'ONGOING', 'COMPLETED') AND a.approvalStatus = 'APPROVED'")
+       long countPublicActivities();
     
     @Query("SELECT a.club.type, COUNT(a) FROM Activity a WHERE a.status = 'COMPLETED' GROUP BY a.club.type")
     List<Object[]> countActivitiesByClubType();

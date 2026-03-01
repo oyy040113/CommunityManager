@@ -76,7 +76,20 @@ public class Club {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private ClubStatus status = ClubStatus.ACTIVE;
+    private ClubStatus status = ClubStatus.PENDING; // 默认待审批
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "creator_id")
+    private User creator; // 社团创建者（申请人）
+    
+    @Column(columnDefinition = "TEXT")
+    private String rejectReason; // 拒绝原因
+    
+    private LocalDateTime approvedAt; // 审批通过时间
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy; // 审批人
     
     @CreatedDate
     @Column(nullable = false, updatable = false)
@@ -108,8 +121,10 @@ public class Club {
     }
     
     public enum ClubStatus {
+        PENDING,     // 待审批
         ACTIVE,      // 活跃
         INACTIVE,    // 不活跃
+        REJECTED,    // 已拒绝
         SUSPENDED,   // 暂停
         DISSOLVED    // 解散
     }

@@ -1,7 +1,6 @@
 package com.community.dto;
 
 import com.community.entity.Activity;
-import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -36,6 +35,11 @@ public class ActivityDTO {
     private Integer currentParticipants;
     private LocalDateTime registrationDeadline;
     private Activity.ActivityStatus status;
+    private Activity.ApprovalStatus approvalStatus;
+    private String rejectReason;
+    private LocalDateTime approvedAt;
+    private Long approvedById;
+    private String approvedByName;
     private Activity.CheckInType checkInType;
     private String qrCodeUrl;
     private String customForm;
@@ -43,6 +47,8 @@ public class ActivityDTO {
     private String summaryImages;
     private Double rating;
     private Integer ratingCount;
+    private Integer registrationCount;  // 报名人数
+    private Integer checkedInCount;     // 签到人数
     private LocalDateTime createdAt;
     private Boolean isRegistered; // 当前用户是否已报名
     private Boolean isCheckedIn; // 当前用户是否已签到
@@ -62,8 +68,14 @@ public class ActivityDTO {
                 .coverImage(activity.getCoverImage())
                 .maxParticipants(activity.getMaxParticipants())
                 .currentParticipants(activity.getCurrentParticipants())
+                .registrationCount(activity.getCurrentParticipants()) // 报名人数默认等于currentParticipants
                 .registrationDeadline(activity.getRegistrationDeadline())
                 .status(activity.getStatus())
+                .approvalStatus(activity.getApprovalStatus())
+                .rejectReason(activity.getRejectReason())
+                .approvedAt(activity.getApprovedAt())
+                .approvedById(activity.getApprovedBy() != null ? activity.getApprovedBy().getId() : null)
+                .approvedByName(activity.getApprovedBy() != null ? activity.getApprovedBy().getRealName() : null)
                 .checkInType(activity.getCheckInType())
                 .qrCodeUrl(activity.getQrCodeUrl())
                 .customForm(activity.getCustomForm())
@@ -94,11 +106,9 @@ public class ActivityDTO {
         private Long clubId;
         
         @NotNull(message = "开始时间不能为空")
-        @Future(message = "开始时间必须是将来的时间")
         private LocalDateTime startTime;
         
         @NotNull(message = "结束时间不能为空")
-        @Future(message = "结束时间必须是将来的时间")
         private LocalDateTime endTime;
         
         @NotBlank(message = "活动地点不能为空")
@@ -109,7 +119,6 @@ public class ActivityDTO {
         private Integer maxParticipants = 0;
         
         @NotNull(message = "报名截止时间不能为空")
-        @Future(message = "报名截止时间必须是将来的时间")
         private LocalDateTime registrationDeadline;
         
         private Activity.CheckInType checkInType = Activity.CheckInType.QR_CODE;
@@ -163,5 +172,20 @@ public class ActivityDTO {
         private String summary;
         
         private String summaryImages;
+    }
+    
+    /**
+     * 审批活动请求
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ApprovalRequest {
+        
+        @NotNull(message = "审批结果不能为空")
+        private Boolean approved;
+        
+        private String rejectReason;
     }
 }

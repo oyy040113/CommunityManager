@@ -21,8 +21,8 @@
         <span class="stat-label">活动</span>
       </div>
       <div class="stat-item">
-        <span class="stat-value">{{ (club.activityScore || 0).toFixed(1) }}</span>
-        <span class="stat-label">活跃度</span>
+        <span class="stat-value">{{ club.feedbackCount || 0 }}人 · {{ (club.averageRating || 0).toFixed(1) }}分</span>
+        <span class="stat-label">活动评价</span>
       </div>
     </div>
   </el-card>

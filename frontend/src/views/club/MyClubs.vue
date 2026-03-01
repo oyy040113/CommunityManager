@@ -77,7 +77,7 @@
       <!-- 待审批 -->
       <el-tab-pane label="待审批" name="pending">
         <el-table :data="pendingApprovals" v-loading="loading">
-          <el-table-column label="社团" min-width="200">
+          <el-table-column label="社团" min-width="180">
             <template #default="{ row }">
               <div class="club-cell">
                 <el-avatar :size="40" :src="row.club?.logo">{{ row.club?.name?.charAt(0) }}</el-avatar>
@@ -85,14 +85,30 @@
               </div>
             </template>
           </el-table-column>
-          <el-table-column label="申请人" prop="userName" width="120" />
-          <el-table-column label="申请时间" width="180">
-            <template #default="{ row }">{{ formatDate(row.createdAt) }}</template>
-          </el-table-column>
-          <el-table-column label="操作" width="200" fixed="right">
+          <el-table-column label="申请人" width="120">
             <template #default="{ row }">
-              <el-button type="success" size="small" @click="handleApprove(row, 'APPROVED')">通过</el-button>
-              <el-button type="danger" size="small" @click="handleApprove(row, 'REJECTED')">拒绝</el-button>
+              <div class="applicant-info">
+                <el-avatar :size="28" :src="row.userAvatar || row.avatar">{{ (row.userName || row.realName)?.charAt(0) }}</el-avatar>
+                <span>{{ row.userName || row.realName || row.username }}</span>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column label="申请理由" min-width="200">
+            <template #default="{ row }">
+              <span class="application-reason">{{ row.applicationReason || '未填写' }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="申请时间" width="160">
+            <template #default="{ row }">{{ formatDate(row.createdAt || row.joinedAt) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="180" fixed="right">
+            <template #default="{ row }">
+              <el-button type="success" size="small" @click="handleApprove(row, true)">
+                <el-icon><Check /></el-icon> 同意
+              </el-button>
+              <el-button type="danger" size="small" @click="showRejectDialog(row)">
+                <el-icon><Close /></el-icon> 拒绝
+              </el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -123,6 +139,27 @@
         <el-button type="primary" :loading="creating" @click="handleCreate">创建</el-button>
       </template>
     </el-dialog>
+    
+    <!-- 拒绝原因对话框 -->
+    <el-dialog v-model="rejectDialogVisible" title="拒绝申请" width="450px">
+      <el-form>
+        <el-form-item label="申请人">
+          <span>{{ currentRejectApplication?.userName || currentRejectApplication?.realName }}</span>
+        </el-form-item>
+        <el-form-item label="拒绝原因">
+          <el-input 
+            v-model="rejectReason" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="请输入拒绝原因（可选）"
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="rejectDialogVisible = false">取消</el-button>
+        <el-button type="danger" :loading="rejecting" @click="confirmReject">确认拒绝</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -130,9 +167,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getMyClubs, getMyCreatedClubs, createClub, getPendingApprovals, approveJoinRequest } from '@/api/club'
+import { getMyClubs, getMyCreatedClubs, createClub, getPendingApprovals, reviewApplication } from '@/api/club'
 import { ElMessage } from 'element-plus'
-import { User, Calendar } from '@element-plus/icons-vue'
+import { User, Calendar, Check, Close } from '@element-plus/icons-vue'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -158,7 +195,7 @@ const getClubTypeName = (type) => clubTypeMap[type]?.name || type
 const getClubTypeTag = (type) => clubTypeMap[type]?.tag || ''
 
 const getRoleName = (role) => {
-  const map = { LEADER: '负责人', CORE: '核心成员', MEMBER: '普通成员' }
+  const map = { LEADER: '负责人', TEACHER: '指导老师', MEMBER: '普通成员' }
   return map[role] || role
 }
 
@@ -186,13 +223,43 @@ const loadData = async () => {
 }
 
 // 审批
-const handleApprove = async (row, status) => {
+const handleApprove = async (row, approved) => {
   try {
-    await approveJoinRequest(row.id, status)
-    ElMessage.success(status === 'APPROVED' ? '已通过' : '已拒绝')
+    await reviewApplication(row.id, approved, '')
+    ElMessage.success('已同意加入申请')
     loadData()
   } catch (e) {
     console.error('审批失败', e)
+    ElMessage.error('操作失败，请重试')
+  }
+}
+
+// 拒绝对话框
+const rejectDialogVisible = ref(false)
+const currentRejectApplication = ref(null)
+const rejectReason = ref('')
+const rejecting = ref(false)
+
+const showRejectDialog = (row) => {
+  currentRejectApplication.value = row
+  rejectReason.value = ''
+  rejectDialogVisible.value = true
+}
+
+const confirmReject = async () => {
+  if (!currentRejectApplication.value) return
+  
+  rejecting.value = true
+  try {
+    await reviewApplication(currentRejectApplication.value.id, false, rejectReason.value)
+    ElMessage.success('已拒绝申请')
+    rejectDialogVisible.value = false
+    loadData()
+  } catch (e) {
+    console.error('拒绝申请失败', e)
+    ElMessage.error('操作失败，请重试')
+  } finally {
+    rejecting.value = false
   }
 }
 
@@ -301,5 +368,21 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+.applicant-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.application-reason {
+  color: #606266;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 200px;
+  display: inline-block;
 }
 </style>

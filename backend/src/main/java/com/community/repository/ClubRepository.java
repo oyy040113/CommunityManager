@@ -23,6 +23,8 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     
     List<Club> findByLeaderId(Long leaderId);
     
+    List<Club> findByCreatorId(Long creatorId);
+    
     Page<Club> findByType(Club.ClubType type, Pageable pageable);
     
     Page<Club> findByStatus(Club.ClubStatus status, Pageable pageable);
@@ -37,6 +39,19 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
                            @Param("status") Club.ClubStatus status,
                            Pageable pageable);
     
+    @Query("SELECT c FROM Club c WHERE " +
+           "(:keyword IS NULL OR c.name LIKE %:keyword% OR c.description LIKE %:keyword%) AND " +
+           "(:type IS NULL OR c.type = :type) AND " +
+           "(:status IS NULL OR c.status = :status) " +
+           "ORDER BY c.createdAt DESC")
+    Page<Club> searchClubsAdmin(@Param("keyword") String keyword, 
+                                @Param("type") Club.ClubType type,
+                                @Param("status") Club.ClubStatus status,
+                                Pageable pageable);
+    
+    @Query("SELECT c FROM Club c WHERE c.status = 'PENDING' ORDER BY c.createdAt DESC")
+    Page<Club> findPendingClubs(Pageable pageable);
+    
     @Query("SELECT c FROM Club c WHERE c.status = 'ACTIVE' ORDER BY c.activityScore DESC")
     List<Club> findTopActiveClubs(Pageable pageable);
     
@@ -45,6 +60,9 @@ public interface ClubRepository extends JpaRepository<Club, Long> {
     
     @Query("SELECT COUNT(c) FROM Club c WHERE c.status = 'ACTIVE'")
     long countActiveClubs();
+    
+    @Query("SELECT COUNT(c) FROM Club c WHERE c.status = 'PENDING'")
+    long countPendingClubs();
     
     @Query("SELECT c.type, COUNT(c) FROM Club c WHERE c.status = 'ACTIVE' GROUP BY c.type")
     List<Object[]> countClubsByType();

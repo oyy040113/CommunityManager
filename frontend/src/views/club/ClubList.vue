@@ -50,8 +50,8 @@
               <span class="stat-label">活动</span>
             </div>
             <div class="stat-item">
-              <span class="stat-value">{{ club.activityScore?.toFixed(1) }}</span>
-              <span class="stat-label">活跃度</span>
+              <span class="stat-value">{{ club.feedbackCount || 0 }}人 · {{ (club.averageRating || 0).toFixed(1) }}分</span>
+              <span class="stat-label">活动评价</span>
             </div>
           </div>
         </el-card>
@@ -195,9 +195,10 @@ const handleCreate = async () => {
   creating.value = true
   try {
     const res = await createClub(createForm)
-    ElMessage.success('社团创建成功')
+    ElMessage.success('社团申请已提交，请等待管理员审批')
     showCreateDialog.value = false
-    router.push(`/clubs/${res.data.id}`)
+    // 不跳转，因为社团还在待审批状态
+    loadClubs()
   } catch (e) {
     console.error('创建社团失败', e)
   } finally {

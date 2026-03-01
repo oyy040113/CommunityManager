@@ -81,8 +81,9 @@ public class User {
     private Set<ClubMember> clubMemberships = new HashSet<>();
     
     public enum UserRole {
-        ADMIN,      // 系统管理员
-        CLUB_LEADER, // 社团负责人
-        MEMBER      // 普通成员
+        ADMIN,        // 超级管理员 - 校社团管理部门，审批社团/活动、用户管理、全局管控
+        CLUB_LEADER,  // 社团管理员/负责人 - 管理社团信息、成员、活动等
+        TEACHER,      // 指导老师 - 审核活动方案、查看所指导社团动态
+        USER          // 普通学生 - 浏览社团/活动、报名参与
     }
 }

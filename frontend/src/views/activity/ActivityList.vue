@@ -63,7 +63,10 @@
               </div>
               <div class="participant-info">
                 <el-icon><User /></el-icon>
-                <span>{{ activity.registrationCount || 0 }}/{{ activity.maxParticipants || '不限' }}</span>
+                <span v-if="['ONGOING', 'COMPLETED'].includes(activity.status)">
+                  签到{{ activity.checkedInCount || 0 }}/报名{{ activity.registrationCount || 0 }}/{{ activity.maxParticipants || '不限' }}
+                </span>
+                <span v-else>{{ activity.registrationCount || 0 }}/{{ activity.maxParticipants || '不限' }}</span>
               </div>
             </div>
           </div>

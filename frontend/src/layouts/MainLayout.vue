@@ -18,11 +18,14 @@
           <el-menu-item index="/">首页</el-menu-item>
           <el-menu-item index="/clubs">社团列表</el-menu-item>
           <el-menu-item index="/activities">活动中心</el-menu-item>
-          <template v-if="userStore.isLoggedIn && userStore.user?.role === 'LEADER'">
+          <template v-if="showManagementMenu">
             <el-sub-menu index="admin">
               <template #title>管理中心</template>
-              <el-menu-item index="/admin/activities">活动管理</el-menu-item>
-              <el-menu-item index="/admin/statistics">数据统计</el-menu-item>
+              <el-menu-item v-if="isClubLeaderOrAdmin" index="/admin/activities">活动管理</el-menu-item>
+              <el-menu-item v-if="isAdminOrTeacher" index="/admin/activity-approval">活动审批</el-menu-item>
+              <el-menu-item v-if="isAdminOrTeacher" index="/admin/club-approval">社团审批</el-menu-item>
+              <el-menu-item v-if="isAdmin" index="/admin/users">用户管理</el-menu-item>
+              <el-menu-item v-if="isClubLeaderOrAdmin" index="/admin/statistics">数据统计</el-menu-item>
             </el-sub-menu>
           </template>
         </el-menu>
@@ -38,9 +41,9 @@
             <el-dropdown trigger="click" @command="handleCommand">
               <div class="user-dropdown">
                 <el-avatar :size="32" :src="userStore.user?.avatar">
-                  {{ userStore.user?.name?.charAt(0) }}
+                  {{ displayName?.charAt(0) }}
                 </el-avatar>
-                <span class="username">{{ userStore.user?.name }}</span>
+                <span class="username">{{ displayName }}</span>
                 <el-icon><ArrowDown /></el-icon>
               </div>
               <template #dropdown>
@@ -77,7 +80,7 @@
     
     <!-- 底部 -->
     <el-footer class="footer">
-      <p>© 2024 学生社团信息整理系统 - 毕业设计项目</p>
+      <p>© 2026 学生社团信息整理系统 - 毕业设计项目</p>
     </el-footer>
   </div>
 </template>
@@ -102,6 +105,21 @@ const activeMenu = computed(() => {
   if (path.startsWith('/activities')) return '/activities'
   if (path.startsWith('/admin')) return 'admin'
   return path
+})
+
+const isAdmin = computed(() => userStore.isAdmin)
+const isClubLeaderOrAdmin = computed(() => userStore.isClubLeaderOrAdmin)
+const isAdminOrTeacher = computed(() => userStore.isAdminOrTeacher)
+
+const showManagementMenu = computed(() => {
+  if (!userStore.isLoggedIn) return false
+  if (userStore.isAdmin || userStore.isClubLeader || userStore.isTeacher) return true
+  return (userStore.user?.clubCount || 0) > 0
+})
+
+const displayName = computed(() => {
+  if (!userStore.isLoggedIn) return ''
+  return userStore.user?.realName || userStore.user?.name || userStore.user?.username || ''
 })
 
 const handleCommand = async (command) => {

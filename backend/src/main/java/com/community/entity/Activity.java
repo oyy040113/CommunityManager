@@ -57,9 +57,11 @@ public class Activity {
     private String coverImage; // 封面图片
     
     @Column(nullable = false)
+    @Builder.Default
     private Integer maxParticipants = 0; // 最大参与人数，0表示不限
     
     @Column(nullable = false)
+    @Builder.Default
     private Integer currentParticipants = 0; // 当前报名人数
     
     @Column(nullable = false)
@@ -67,10 +69,26 @@ public class Activity {
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
     private ActivityStatus status = ActivityStatus.DRAFT;
     
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
+    @Builder.Default
+    private ApprovalStatus approvalStatus = ApprovalStatus.PENDING; // 审批状态
+    
+    @Column(columnDefinition = "TEXT")
+    private String rejectReason; // 拒绝原因
+    
+    private LocalDateTime approvedAt; // 审批通过时间
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approved_by")
+    private User approvedBy; // 审批人
+    
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    @Builder.Default
     private CheckInType checkInType = CheckInType.QR_CODE; // 签到方式
     
     @Column(length = 255)
@@ -86,9 +104,11 @@ public class Activity {
     private String summaryImages; // 活动总结图片(JSON数组)
     
     @Column(nullable = false)
+    @Builder.Default
     private Double rating = 0.0; // 活动评分
     
     @Column(nullable = false)
+    @Builder.Default
     private Integer ratingCount = 0; // 评分人数
     
     @CreatedDate
@@ -100,10 +120,12 @@ public class Activity {
     
     // 活动报名记录
     @OneToMany(mappedBy = "activity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private Set<ActivityRegistration> registrations = new HashSet<>();
     
     // 活动反馈
     @OneToMany(mappedBy = "activity", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    @Builder.Default
     private Set<ActivityFeedback> feedbacks = new HashSet<>();
     
     public enum ActivityStatus {
@@ -113,6 +135,12 @@ public class Activity {
         ONGOING,        // 进行中
         COMPLETED,      // 已完成
         CANCELLED       // 已取消
+    }
+    
+    public enum ApprovalStatus {
+        PENDING,        // 待审批
+        APPROVED,       // 已通过
+        REJECTED        // 已拒绝
     }
     
     public enum CheckInType {

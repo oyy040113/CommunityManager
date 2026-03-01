@@ -48,4 +48,7 @@ public interface ClubMemberRepository extends JpaRepository<ClubMember, Long> {
     
     @Query("SELECT cm.role, COUNT(cm) FROM ClubMember cm WHERE cm.club.id = :clubId AND cm.status = 'APPROVED' GROUP BY cm.role")
     List<Object[]> countMembersByRole(@Param("clubId") Long clubId);
+    
+    @Query("SELECT cm FROM ClubMember cm WHERE cm.user.id = :userId AND cm.role = :role")
+    List<ClubMember> findByUserIdAndRole(@Param("userId") Long userId, @Param("role") ClubMember.MemberRole role);
 }

@@ -18,6 +18,25 @@
             label-width="100px"
             style="max-width: 600px"
           >
+            <el-form-item label="社团Logo">
+              <el-upload
+                class="logo-uploader"
+                :show-file-list="false"
+                :before-upload="beforeLogoUpload"
+                :http-request="uploadLogo"
+              >
+                <el-avatar 
+                  v-if="infoForm.logo" 
+                  :size="100" 
+                  :src="infoForm.logo"
+                  class="upload-avatar"
+                />
+                <div v-else class="upload-placeholder">
+                  <el-icon><Plus /></el-icon>
+                  <div>上传Logo</div>
+                </div>
+              </el-upload>
+            </el-form-item>
             <el-form-item label="社团名称" prop="name">
               <el-input v-model="infoForm.name" />
             </el-form-item>
@@ -77,7 +96,7 @@
                   @change="updateMemberRole(row)"
                 >
                   <el-option label="负责人" value="LEADER" disabled />
-                  <el-option label="核心成员" value="CORE" />
+                  <el-option label="指导老师" value="TEACHER" />
                   <el-option label="普通成员" value="MEMBER" />
                 </el-select>
               </template>
@@ -205,17 +224,17 @@ import {
   getClub, 
   updateClub, 
   getClubMembers, 
-  updateMember,
+  updateMemberRole as updateMemberRoleApi,
   removeMember as removeMemberApi,
   getClubApplications,
-  approveJoinRequest,
+  reviewApplication,
   getClubAnnouncements,
   createAnnouncement,
   updateAnnouncement,
   deleteAnnouncement as deleteAnnouncementApi
 } from '@/api/club'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { View } from '@element-plus/icons-vue'
+import { View, Plus } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -250,6 +269,7 @@ const formatDateTime = (dateStr) => {
 // 基本信息
 const infoFormRef = ref(null)
 const infoForm = reactive({
+  logo: '',
   name: '',
   type: '',
   purpose: '',
@@ -267,7 +287,16 @@ const loadClub = async () => {
   try {
     const res = await getClub(clubId.value)
     club.value = res.data
+    
+    // 检查权限：只有社团负责人或管理员才能管理
+    if (club.value.leaderId !== userStore.user.id && userStore.user.role !== 'ADMIN') {
+      ElMessage.error('您没有权限管理此社团')
+      router.push('/my-clubs')
+      return
+    }
+    
     Object.assign(infoForm, {
+      logo: res.data.logo || '',
       name: res.data.name,
       type: res.data.type,
       purpose: res.data.purpose || '',
@@ -277,6 +306,7 @@ const loadClub = async () => {
     })
   } catch (e) {
     console.error('加载社团信息失败', e)
+    ElMessage.error('加载社团信息失败')
   }
 }
 
@@ -293,6 +323,50 @@ const saveInfo = async () => {
     console.error('保存失败', e)
   } finally {
     saving.value = false
+  }
+}
+
+// Logo上传
+const beforeLogoUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt2M = file.size / 1024 / 1024 < 2
+  
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过2MB')
+    return false
+  }
+  return true
+}
+
+const uploadLogo = async (options) => {
+  const formData = new FormData()
+  formData.append('file', options.file)
+  
+  try {
+    // 使用文件上传API
+    const res = await fetch('/api/files/upload?type=club-logos', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${userStore.token}`
+      },
+      body: formData
+    })
+    const data = await res.json()
+    if (data.success) {
+      infoForm.logo = data.data
+      ElMessage.success('Logo上传成功')
+      // 自动保存
+      saveInfo()
+    } else {
+      ElMessage.error('上传失败：' + (data.message || '未知错误'))
+    }
+  } catch (e) {
+    console.error('上传Logo失败', e)
+    ElMessage.error('上传Logo失败')
   }
 }
 
@@ -324,7 +398,7 @@ const loadMembers = async () => {
 
 const updateMemberRole = async (member) => {
   try {
-    await updateMember(clubId.value, member.id, { role: member.role })
+    await updateMemberRoleApi(member.id, { role: member.role, position: member.position })
     ElMessage.success('角色更新成功')
   } catch (e) {
     console.error('更新角色失败', e)
@@ -334,7 +408,7 @@ const updateMemberRole = async (member) => {
 
 const updateMemberPosition = async (member) => {
   try {
-    await updateMember(clubId.value, member.id, { position: member.position })
+    await updateMemberRoleApi(member.id, { role: member.role, position: member.position })
   } catch (e) {
     console.error('更新职位失败', e)
   }
@@ -343,7 +417,7 @@ const updateMemberPosition = async (member) => {
 const removeMember = async (member) => {
   try {
     await ElMessageBox.confirm(`确定要移除成员 ${member.userName} 吗？`, '提示', { type: 'warning' })
-    await removeMemberApi(clubId.value, member.id)
+    await removeMemberApi(clubId.value, member.userId)
     ElMessage.success('已移除')
     loadMembers()
   } catch (e) {
@@ -371,8 +445,9 @@ const loadApplications = async () => {
 
 const handleApplication = async (row, status) => {
   try {
-    await approveJoinRequest(row.id, status)
-    ElMessage.success(status === 'APPROVED' ? '已通过' : '已拒绝')
+    const approved = status === 'APPROVED'
+    await reviewApplication(row.id, approved, '')
+    ElMessage.success(approved ? '已通过' : '已拒绝')
     loadApplications()
     loadMembers()
   } catch (e) {
@@ -500,5 +575,40 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.logo-uploader {
+  cursor: pointer;
+}
+
+.upload-avatar {
+  display: block;
+  border: 2px solid #dcdfe6;
+  border-radius: 4px;
+}
+
+.upload-placeholder {
+  width: 100px;
+  height: 100px;
+  border: 2px dashed #dcdfe6;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #8c939d;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.upload-placeholder:hover {
+  border-color: #409eff;
+  color: #409eff;
+}
+
+.upload-placeholder .el-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
 }
 </style>

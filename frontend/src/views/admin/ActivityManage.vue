@@ -39,9 +39,13 @@
           </template>
         </el-table-column>
         <el-table-column prop="location" label="地点" width="120" />
-        <el-table-column label="报名" width="100">
+        <el-table-column label="报名/签到" width="140">
           <template #default="{ row }">
-            {{ row.registrationCount || 0 }} / {{ row.maxParticipants || '不限' }}
+            <div v-if="['ONGOING', 'COMPLETED'].includes(row.status)">
+              <div>签到 {{ row.checkedInCount || 0 }} / 报名 {{ row.registrationCount || 0 }}</div>
+              <div class="end-time">上限 {{ row.maxParticipants || '不限' }}</div>
+            </div>
+            <span v-else>{{ row.registrationCount || 0 }} / {{ row.maxParticipants || '不限' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="状态" width="100">
@@ -71,6 +75,32 @@
         :rules="activityRules"
         label-width="100px"
       >
+        <el-form-item label="封面图片">
+          <el-upload
+            class="cover-uploader"
+            :show-file-list="false"
+            :before-upload="beforeCoverUpload"
+            :http-request="uploadCover"
+          >
+            <el-image 
+              v-if="activityForm.coverImage" 
+              :src="activityForm.coverImage"
+              fit="cover"
+              class="upload-cover"
+            >
+              <template #error>
+                <div class="cover-placeholder">
+                  <el-icon><Plus /></el-icon>
+                  <div>上传封面</div>
+                </div>
+              </template>
+            </el-image>
+            <div v-else class="cover-placeholder">
+              <el-icon><Plus /></el-icon>
+              <div>上传封面</div>
+            </div>
+          </el-upload>
+        </el-form-item>
         <el-form-item label="所属社团" prop="clubId">
           <el-select v-model="activityForm.clubId" placeholder="请选择社团" style="width: 100%">
             <el-option v-for="club in myClubs" :key="club.id" :label="club.name" :value="club.id" />
@@ -134,23 +164,31 @@
     </el-dialog>
     
     <!-- 参与者对话框 -->
-    <el-dialog v-model="showParticipantsDialog" title="参与者列表" width="600px">
+    <el-dialog v-model="showParticipantsDialog" title="参与者列表" width="900px">
       <el-table :data="participants" v-loading="participantsLoading">
         <el-table-column label="头像" width="80">
           <template #default="{ row }">
-            <el-avatar :size="40" :src="row.userAvatar">{{ row.userName?.charAt(0) }}</el-avatar>
+            <el-avatar :size="40" :src="row.avatar">{{ (row.realName || row.username)?.charAt(0) }}</el-avatar>
           </template>
         </el-table-column>
-        <el-table-column prop="userName" label="姓名" />
-        <el-table-column prop="userEmail" label="邮箱" />
-        <el-table-column label="报名时间">
-          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        <el-table-column prop="username" label="用户名" width="100" />
+        <el-table-column prop="realName" label="真实姓名" width="100" />
+        <el-table-column prop="studentId" label="学号" width="120" />
+        <el-table-column label="报名时间" width="180">
+          <template #default="{ row }">{{ formatDateTime(row.registeredAt) }}</template>
         </el-table-column>
-        <el-table-column label="签到" width="80">
+        <el-table-column label="签到" width="160">
           <template #default="{ row }">
-            <el-tag :type="row.checkedIn ? 'success' : 'info'">
-              {{ row.checkedIn ? '已签到' : '未签到' }}
-            </el-tag>
+            <el-tag v-if="row.checkedIn" type="success">已签到</el-tag>
+            <el-button 
+              v-else-if="isActivityStarted(viewingActivity)" 
+              type="primary" 
+              size="small" 
+              @click="handleManualCheckIn(row)"
+            >
+              签到
+            </el-button>
+            <el-tag v-else type="info">未签到</el-tag>
           </template>
         </el-table-column>
       </el-table>
@@ -169,11 +207,11 @@ import {
   createActivity, 
   updateActivity, 
   deleteActivity as deleteActivityApi,
-  getActivityParticipants
+  getActivityParticipants,
+  manualCheckIn
 } from '@/api/activity'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
-
 const router = useRouter()
 const userStore = useUserStore()
 
@@ -265,6 +303,7 @@ const activityForm = reactive({
   clubId: '',
   title: '',
   description: '',
+  coverImage: '',
   startTime: null,
   endTime: null,
   registrationDeadline: null,
@@ -288,6 +327,7 @@ const openActivityDialog = (activity = null) => {
       clubId: activity.clubId,
       title: activity.title,
       description: activity.description || '',
+      coverImage: activity.coverImage || '',
       startTime: new Date(activity.startTime),
       endTime: new Date(activity.endTime),
       registrationDeadline: new Date(activity.registrationDeadline),
@@ -299,6 +339,7 @@ const openActivityDialog = (activity = null) => {
       clubId: selectedClubId.value,
       title: '',
       description: '',
+      coverImage: '',
       startTime: null,
       endTime: null,
       registrationDeadline: null,
@@ -307,6 +348,42 @@ const openActivityDialog = (activity = null) => {
     })
   }
   showActivityDialog.value = true
+}
+
+// 封面上传
+const beforeCoverUpload = (file) => {
+  const isImage = file.type.startsWith('image/')
+  const isLt2M = file.size / 1024 / 1024 < 2
+  
+  if (!isImage) {
+    ElMessage.error('只能上传图片文件')
+    return false
+  }
+  if (!isLt2M) {
+    ElMessage.error('图片大小不能超过2MB')
+    return false
+  }
+  return true
+}
+
+const uploadCover = async (options) => {
+  const formData = new FormData()
+  formData.append('file', options.file)
+  
+  try {
+    const res = await request.post('/files/upload/activity-cover', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    if (res.data) {
+      activityForm.coverImage = res.data
+      ElMessage.success('封面上传成功')
+    }
+  } catch (e) {
+    console.error('上传封面失败', e)
+    ElMessage.error(e.message || '上传封面失败')
+  }
 }
 
 const saveActivity = async () => {
@@ -356,8 +433,15 @@ const deleteActivity = async (activity) => {
 const showParticipantsDialog = ref(false)
 const participants = ref([])
 const participantsLoading = ref(false)
+const viewingActivity = ref(null)
+
+const isActivityStarted = (activity) => {
+  if (!activity) return false
+  return new Date() >= new Date(activity.startTime)
+}
 
 const viewParticipants = async (activity) => {
+  viewingActivity.value = activity
   showParticipantsDialog.value = true
   participantsLoading.value = true
   try {
@@ -367,6 +451,18 @@ const viewParticipants = async (activity) => {
     console.error('加载参与者失败', e)
   } finally {
     participantsLoading.value = false
+  }
+}
+
+const handleManualCheckIn = async (registration) => {
+  try {
+    await manualCheckIn(viewingActivity.value.id, registration.userId)
+    ElMessage.success(`已为 ${registration.realName || registration.username} 签到`)
+    // 刷新参与者列表
+    const res = await getActivityParticipants(viewingActivity.value.id)
+    participants.value = res.data?.content || res.data || []
+  } catch (e) {
+    console.error('签到失败', e)
   }
 }
 

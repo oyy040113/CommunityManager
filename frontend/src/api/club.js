@@ -25,6 +25,16 @@ export function updateClub(id, data) {
   return request.put(`/clubs/${id}`, data)
 }
 
+// 转让社团
+export function transferClub(id, data) {
+  return request.post(`/clubs/${id}/transfer`, data)
+}
+
+// 设置社团管理员
+export function setClubAdmin(id, data) {
+  return request.post(`/clubs/${id}/set-admin`, data)
+}
+
 // 申请加入社团
 export function joinClub(clubId, applicationReason) {
   return request.post(`/clubs/${clubId}/join`, { applicationReason })
@@ -40,9 +50,14 @@ export function getMyClubs() {
   return request.get('/clubs/my-clubs')
 }
 
-// 获取我创建的社团
+// 获取我创建/管理的社团
 export function getMyCreatedClubs() {
   return request.get('/clubs/my-created')
+}
+
+// 获取我管理的社团
+export function getMyManagedClubs() {
+  return request.get('/clubs/my-managed')
 }
 
 // 获取我的申请
@@ -76,18 +91,41 @@ export function getPendingApprovals() {
 }
 
 // 审核申请
-export function approveJoinRequest(memberId, status) {
-  return request.put(`/clubs/members/${memberId}/approve`, { status })
+export function reviewApplication(memberId, approved, rejectReason = '') {
+  return request.put(`/clubs/members/${memberId}/review`, { 
+    approved, 
+    rejectReason 
+  })
 }
 
-// 更新成员信息
-export function updateMember(clubId, memberId, data) {
-  return request.put(`/clubs/${clubId}/members/${memberId}`, data)
+// 更新成员角色/职位
+export function updateMemberRole(memberId, data) {
+  return request.put(`/clubs/members/${memberId}/role`, data)
 }
 
 // 移除成员
-export function removeMember(clubId, memberId) {
-  return request.delete(`/clubs/${clubId}/members/${memberId}`)
+export function removeMember(clubId, userId) {
+  return request.delete(`/clubs/${clubId}/members/${userId}`)
+}
+
+// 邀请指导老师
+export function inviteTeacher(clubId, data) {
+  return request.post(`/clubs/${clubId}/invite-teacher`, data)
+}
+
+// 接受指导老师邀请
+export function acceptTeacherInvitation(memberId) {
+  return request.put(`/clubs/teacher-invitations/${memberId}/accept`)
+}
+
+// 拒绝指导老师邀请
+export function rejectTeacherInvitation(memberId) {
+  return request.put(`/clubs/teacher-invitations/${memberId}/reject`)
+}
+
+// 获取指导老师邀请列表
+export function getTeacherInvitations() {
+  return request.get('/clubs/teacher-invitations')
 }
 
 // 创建公告
@@ -103,4 +141,33 @@ export function updateAnnouncement(id, data) {
 // 删除公告
 export function deleteAnnouncement(id) {
   return request.delete(`/announcements/${id}`)
+}
+
+// ==================== 管理员接口 ====================
+
+// 获取待审批社团
+export function getPendingClubs(params) {
+  return request.get('/clubs/admin/pending', { params })
+}
+
+// 管理员搜索社团
+export function searchClubsAdmin(params) {
+  return request.get('/clubs/admin/search', { params })
+}
+
+// 管理员创建社团
+export function createClubByAdmin(data, leaderId) {
+  return request.post('/clubs/admin/create', data, {
+    params: { leaderId }
+  })
+}
+
+// 审批社团
+export function approveClub(id, data) {
+  return request.put(`/clubs/admin/${id}/approve`, data)
+}
+
+// 管理员删除社团
+export function deleteClubByAdmin(id) {
+  return request.delete(`/clubs/admin/${id}`)
 }

@@ -36,6 +36,8 @@ public class NotificationService {
                 .type(Notification.NotificationType.CLUB_JOIN)
                 .relatedId(club.getId())
                 .relatedType("club")
+                .read(false)
+                .createdAt(LocalDateTime.now())
                 .build();
         
         notificationRepository.save(notification);
@@ -53,6 +55,8 @@ public class NotificationService {
                 .type(Notification.NotificationType.CLUB_APPROVED)
                 .relatedId(club.getId())
                 .relatedType("club")
+                .read(false)
+                .createdAt(LocalDateTime.now())
                 .build();
         
         notificationRepository.save(notification);
@@ -71,6 +75,86 @@ public class NotificationService {
                 .type(Notification.NotificationType.CLUB_REJECTED)
                 .relatedId(club.getId())
                 .relatedType("club")
+                .read(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        notificationRepository.save(notification);
+    }
+    
+    /**
+     * 发送社团创建审批通过通知
+     */
+    @Transactional
+    public void sendClubApprovedNotification(User receiver, Club club) {
+        Notification notification = Notification.builder()
+                .user(receiver)
+                .title("社团创建申请已通过")
+                .content(String.format("恭喜您！您创建的社团 %s 已通过审批，现已正式成立", club.getName()))
+                .type(Notification.NotificationType.CLUB_APPROVED)
+                .relatedId(club.getId())
+                .relatedType("club")
+                .read(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        notificationRepository.save(notification);
+    }
+    
+    /**
+     * 发送社团创建审批拒绝通知
+     */
+    @Transactional
+    public void sendClubRejectedNotification(User receiver, Club club, String reason) {
+        Notification notification = Notification.builder()
+                .user(receiver)
+                .title("社团创建申请未通过")
+                .content(String.format("很抱歉，您创建社团 %s 的申请未通过。原因：%s", 
+                        club.getName(), reason != null ? reason : "无"))
+                .type(Notification.NotificationType.CLUB_REJECTED)
+                .relatedId(club.getId())
+                .relatedType("club")
+                .read(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        notificationRepository.save(notification);
+    }
+    
+    /**
+     * 发送活动审批通过通知
+     */
+    @Transactional
+    public void sendActivityApprovedNotification(User receiver, Activity activity) {
+        Notification notification = Notification.builder()
+                .user(receiver)
+                .title("活动审批通过")
+                .content(String.format("您创建的活动 %s 已通过审批，现在可以发布了", activity.getTitle()))
+                .type(Notification.NotificationType.ACTIVITY_UPDATE)
+                .relatedId(activity.getId())
+                .relatedType("activity")
+                .read(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        notificationRepository.save(notification);
+    }
+    
+    /**
+     * 发送活动审批拒绝通知
+     */
+    @Transactional
+    public void sendActivityRejectedNotification(User receiver, Activity activity, String reason) {
+        Notification notification = Notification.builder()
+                .user(receiver)
+                .title("活动审批未通过")
+                .content(String.format("很抱歉，您创建的活动 %s 未通过审批。原因：%s", 
+                        activity.getTitle(), reason != null ? reason : "无"))
+                .type(Notification.NotificationType.ACTIVITY_UPDATE)
+                .relatedId(activity.getId())
+                .relatedType("activity")
+                .read(false)
+                .createdAt(LocalDateTime.now())
                 .build();
         
         notificationRepository.save(notification);
@@ -94,6 +178,8 @@ public class NotificationService {
                         .type(Notification.NotificationType.ACTIVITY_UPDATE)
                         .relatedId(activity.getId())
                         .relatedType("activity")
+                        .read(false)
+                        .createdAt(LocalDateTime.now())
                         .build();
                 
                 notificationRepository.save(notification);
@@ -114,6 +200,8 @@ public class NotificationService {
                 .type(Notification.NotificationType.ACTIVITY_REMINDER)
                 .relatedId(activity.getId())
                 .relatedType("activity")
+                .read(false)
+                .createdAt(LocalDateTime.now())
                 .build();
         
         notificationRepository.save(notification);
@@ -137,6 +225,8 @@ public class NotificationService {
                         .type(Notification.NotificationType.ANNOUNCEMENT)
                         .relatedId(announcement.getId())
                         .relatedType("announcement")
+                        .read(false)
+                        .createdAt(LocalDateTime.now())
                         .build();
                 
                 notificationRepository.save(notification);

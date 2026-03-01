@@ -68,11 +68,7 @@ public class ClubMember {
     
     public enum MemberRole {
         LEADER,     // 社团负责人
-        VICE_LEADER, // 副社长
-        ADMIN,      // 管理员
-        PLANNER,    // 活动策划
-        FINANCE,    // 财务管理员
-        PUBLICITY,  // 宣传
+        TEACHER,    // 指导老师
         MEMBER      // 普通成员
     }
     

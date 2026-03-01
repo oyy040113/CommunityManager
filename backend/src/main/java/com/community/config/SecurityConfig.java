@@ -54,6 +54,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/clubs/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/activities/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/announcements/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/statistics/public-overview").permitAll()
                         // 管理员接口
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/statistics/system").hasRole("ADMIN")
@@ -88,9 +89,9 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
+        configuration.setAllowedOriginPatterns(List.of("*"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        configuration.setAllowedHeaders(List.of("*"));
         configuration.setExposedHeaders(List.of("Authorization"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);

@@ -4,6 +4,7 @@ import com.community.entity.ActivityFeedback;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -33,4 +34,16 @@ public interface ActivityFeedbackRepository extends JpaRepository<ActivityFeedba
     
     @Query("SELECT af.rating, COUNT(af) FROM ActivityFeedback af WHERE af.activity.id = :activityId GROUP BY af.rating ORDER BY af.rating DESC")
     List<Object[]> getRatingDistributionByActivityId(@Param("activityId") Long activityId);
+
+    Page<ActivityFeedback> findByUserIdOrderByCreatedAtDesc(Long userId, Pageable pageable);
+    
+    @Query("SELECT AVG(af.rating) FROM ActivityFeedback af WHERE af.activity.club.id = :clubId")
+    Double getAverageRatingByClubId(@Param("clubId") Long clubId);
+    
+    @Query("SELECT COUNT(af) FROM ActivityFeedback af WHERE af.activity.club.id = :clubId")
+    long countByClubId(@Param("clubId") Long clubId);
+    
+    @Modifying
+    @Query("DELETE FROM ActivityFeedback af WHERE af.activity.id = :activityId")
+    void deleteByActivityId(@Param("activityId") Long activityId);
 }

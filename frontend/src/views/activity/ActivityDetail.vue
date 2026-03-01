@@ -31,8 +31,12 @@
               <div class="info-item">
                 <el-icon><User /></el-icon>
                 <div class="info-content">
-                  <span class="info-label">参与人数</span>
-                  <span class="info-value">{{ activity.registrationCount || 0 }} / {{ activity.maxParticipants || '不限' }} 人</span>
+                  <span class="info-label" v-if="['ONGOING', 'COMPLETED'].includes(activity.status)">参与人数</span>
+                  <span class="info-label" v-else>报名人数</span>
+                  <span class="info-value" v-if="['ONGOING', 'COMPLETED'].includes(activity.status)">
+                    签到 {{ activity.checkedInCount || 0 }} / 报名 {{ activity.registrationCount || 0 }} / {{ activity.maxParticipants || '不限' }} 人
+                  </span>
+                  <span class="info-value" v-else>{{ activity.registrationCount || 0 }} / {{ activity.maxParticipants || '不限' }} 人</span>
                 </div>
               </div>
               <div class="info-item">
@@ -97,12 +101,13 @@
             <el-table :data="participants" v-loading="participantsLoading">
               <el-table-column label="头像" width="80">
                 <template #default="{ row }">
-                  <el-avatar :size="40" :src="row.userAvatar">{{ row.userName?.charAt(0) }}</el-avatar>
+                  <el-avatar :size="40" :src="row.avatar">{{ (row.realName || row.username)?.charAt(0) }}</el-avatar>
                 </template>
               </el-table-column>
-              <el-table-column prop="userName" label="姓名" />
+              <el-table-column prop="realName" label="姓名" />
+              <el-table-column prop="studentId" label="学号" width="130" />
               <el-table-column label="报名时间">
-                <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+                <template #default="{ row }">{{ formatDateTime(row.registeredAt) }}</template>
               </el-table-column>
               <el-table-column label="状态">
                 <template #default="{ row }">
@@ -233,6 +238,12 @@ const isRegistered = computed(() => {
   return participants.value.some(p => p.userId === userStore.user.id)
 })
 
+const isCheckedIn = computed(() => {
+  if (!userStore.user || !participants.value.length) return false
+  const reg = participants.value.find(p => p.userId === userStore.user.id)
+  return reg && reg.checkedIn
+})
+
 const canRegister = computed(() => {
   if (!activity.value) return false
   const now = new Date()
@@ -243,9 +254,7 @@ const canRegister = computed(() => {
 
 const canFeedback = computed(() => {
   if (!activity.value || !userStore.user) return false
-  const now = new Date()
-  const end = new Date(activity.value.endTime)
-  return now > end && isRegistered.value
+  return isCheckedIn.value
 })
 
 const averageRating = computed(() => {

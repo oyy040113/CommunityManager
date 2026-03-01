@@ -33,10 +33,18 @@ public class ClubDTO {
     private String documentUrl;
     private Long leaderId;
     private String leaderName;
+    private Long creatorId;
+    private String creatorName;
     private Integer memberCount;
     private Integer activityCount;
     private Double activityScore;
+    private Integer feedbackCount;
+    private Double averageRating;
     private Club.ClubStatus status;
+    private String rejectReason;
+    private LocalDateTime approvedAt;
+    private Long approvedById;
+    private String approvedByName;
     private LocalDateTime createdAt;
     
     public static ClubDTO fromEntity(Club club) {
@@ -54,11 +62,30 @@ public class ClubDTO {
                 .documentUrl(club.getDocumentUrl())
                 .leaderId(club.getLeader() != null ? club.getLeader().getId() : null)
                 .leaderName(club.getLeader() != null ? club.getLeader().getRealName() : null)
+                .creatorId(club.getCreator() != null ? club.getCreator().getId() : null)
+                .creatorName(club.getCreator() != null ? club.getCreator().getRealName() : null)
                 .memberCount(club.getMemberCount())
                 .activityCount(club.getActivityCount())
                 .activityScore(club.getActivityScore())
                 .status(club.getStatus())
+                .rejectReason(club.getRejectReason())
+                .approvedAt(club.getApprovedAt())
+                .approvedById(club.getApprovedBy() != null ? club.getApprovedBy().getId() : null)
+                .approvedByName(club.getApprovedBy() != null ? club.getApprovedBy().getRealName() : null)
                 .createdAt(club.getCreatedAt())
+                .build();
+    }
+    
+    /**
+     * 简化的社团信息转换（用于嵌套对象）
+     */
+    public static ClubDTO simpleFromEntity(Club club) {
+        return ClubDTO.builder()
+                .id(club.getId())
+                .name(club.getName())
+                .type(club.getType())
+                .logo(club.getLogo())
+                .memberCount(club.getMemberCount())
                 .build();
     }
     
@@ -124,5 +151,53 @@ public class ClubDTO {
         private String location;
         
         private String documentUrl;
+        
+        private Club.ClubStatus status;
+    }
+    
+    /**
+     * 审批社团请求
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ApprovalRequest {
+        
+        @NotNull(message = "审批结果不能为空")
+        private Boolean approved;
+        
+        private String rejectReason;
+    }
+    
+    /**
+     * 转让社团请求
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TransferRequest {
+        
+        @NotNull(message = "新负责人ID不能为空")
+        private Long newLeaderId;
+    }
+    
+    /**
+     * 设置社团管理员请求
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SetAdminRequest {
+        
+        @NotNull(message = "用户ID不能为空")
+        private Long userId;
+        
+        @NotNull(message = "是否设为管理员不能为空")
+        private Boolean isAdmin;
+        
+        private String position;
     }
 }

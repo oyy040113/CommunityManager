@@ -16,9 +16,9 @@ export const CLUB_TYPE_OPTIONS = Object.values(CLUB_TYPES)
 
 // 成员角色
 export const MEMBER_ROLES = {
-  LEADER: { label: '负责人', value: 'LEADER', tag: 'danger' },
-  CORE: { label: '核心成员', value: 'CORE', tag: 'warning' },
-  MEMBER: { label: '普通成员', value: 'MEMBER', tag: 'info' }
+  LEADER: { label: '社团负责人', value: 'LEADER', tag: 'danger' },
+  TEACHER: { label: '指导老师', value: 'TEACHER', tag: 'success' },
+  MEMBER: { label: '普通学生', value: 'MEMBER', tag: 'info' }
 }
 
 // 成员角色选项列表

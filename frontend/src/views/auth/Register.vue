@@ -72,7 +72,7 @@
                 <el-option label="2021级" value="2021" />
                 <el-option label="2022级" value="2022" />
                 <el-option label="2023级" value="2023" />
-                <el-option label="2024级" value="2024" />
+                <el-option label="2026级" value="2026" />
               </el-select>
             </el-form-item>
           </el-col>

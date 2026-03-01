@@ -19,6 +19,7 @@ public class AuthResponse {
     
     private String token;
     private String refreshToken;
+    @Builder.Default
     private String tokenType = "Bearer";
     private Long expiresIn;
     private UserDTO user;
@@ -41,6 +42,13 @@ public class AuthResponse {
         private User.UserRole role;
         private LocalDateTime createdAt;
         private LocalDateTime lastLoginAt;
+        // 统计信息
+        @Builder.Default
+        private Integer clubCount = 0;
+        @Builder.Default
+        private Integer activityCount = 0;
+        @Builder.Default
+        private Integer feedbackCount = 0;
         
         public static UserDTO fromEntity(User user) {
             return UserDTO.builder()

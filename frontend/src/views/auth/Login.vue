@@ -53,15 +53,76 @@
       
       <el-divider>测试账号</el-divider>
       <div class="test-accounts">
-        <el-tag @click="fillTestAccount('admin', 'admin123')" class="test-tag">
-          管理员: admin / admin123
-        </el-tag>
-        <el-tag @click="fillTestAccount('leader', 'leader123')" type="success" class="test-tag">
-          社团负责人: leader / leader123
-        </el-tag>
-        <el-tag @click="fillTestAccount('test', 'test123')" type="info" class="test-tag">
-          普通用户: test / test123
-        </el-tag>
+        <el-row :gutter="10">
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('admin', 'admin123')" class="test-tag account-tag">
+              <div class="account-name">系统管理员</div>
+              <div class="account-info">admin / admin123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('leader1', 'leader123')" type="success" class="test-tag account-tag">
+              <div class="account-name">社长李明</div>
+              <div class="account-info">leader1 / leader123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('leader2', 'leader123')" type="success" class="test-tag account-tag">
+              <div class="account-name">社长王华</div>
+              <div class="account-info">leader2 / leader123</div>
+            </el-tag>
+          </el-col>
+        </el-row>
+        <el-row :gutter="10" style="margin-top: 8px">
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('leader3', 'leader123')" type="success" class="test-tag account-tag">
+              <div class="account-name">社长张伟</div>
+              <div class="account-info">leader3 / leader123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('teacher1', 'teacher123')" type="warning" class="test-tag account-tag">
+              <div class="account-name">陈老师</div>
+              <div class="account-info">teacher1 / teacher123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('teacher2', 'teacher123')" type="warning" class="test-tag account-tag">
+              <div class="account-name">刘老师</div>
+              <div class="account-info">teacher2 / teacher123</div>
+            </el-tag>
+          </el-col>
+        </el-row>
+        <el-row :gutter="10" style="margin-top: 8px">
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('teacher3', 'teacher123')" type="warning" class="test-tag account-tag">
+              <div class="account-name">赵老师</div>
+              <div class="account-info">teacher3 / teacher123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('student1', 'student123')" type="info" class="test-tag account-tag">
+              <div class="account-name">学生小红</div>
+              <div class="account-info">student1 / student123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('student2', 'student123')" type="info" class="test-tag account-tag">
+              <div class="account-name">学生小刚</div>
+              <div class="account-info">student2 / student123</div>
+            </el-tag>
+          </el-col>
+        </el-row>
+        <el-row :gutter="10" style="margin-top: 8px">
+          <el-col :span="8">
+            <el-tag @click="fillTestAccount('student3', 'student123')" type="info" class="test-tag account-tag">
+              <div class="account-name">学生小美</div>
+              <div class="account-info">student3 / student123</div>
+            </el-tag>
+          </el-col>
+          <el-col :span="8" />
+          <el-col :span="8" />
+        </el-row>
       </div>
     </div>
   </div>
@@ -163,17 +224,37 @@ const fillTestAccount = (username, password) => {
 }
 
 .test-accounts {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+  display: block;
 }
 
 .test-tag {
   cursor: pointer;
   justify-content: center;
+  width: 100%;
+  display: flex !important;
+  flex-direction: column;
+  padding: 8px 4px;
+  min-height: 50px;
+  line-height: 1.2;
 }
 
-.test-tag:hover {
+.account-tag {
+  background: linear-gradient(135deg, #f5f7fa 0%, #f5f7fa 100%);
+}
+
+.account-tag:hover {
   opacity: 0.8;
+  transform: translateY(-2px);
+}
+
+.account-name {
+  font-weight: 600;
+  font-size: 12px;
+}
+
+.account-info {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 2px;
 }
 </style>

@@ -185,9 +185,7 @@ public class AnnouncementService {
         }
         
         if (member.getRole() != ClubMember.MemberRole.LEADER && 
-            member.getRole() != ClubMember.MemberRole.VICE_LEADER &&
-            member.getRole() != ClubMember.MemberRole.ADMIN &&
-            member.getRole() != ClubMember.MemberRole.PUBLICITY) {
+            member.getRole() != ClubMember.MemberRole.TEACHER) {
             throw new BusinessException("您没有权限管理该社团公告");
         }
     }

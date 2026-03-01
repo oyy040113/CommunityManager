@@ -11,10 +11,6 @@ import java.util.Map;
 /**
  * 统计数据DTO
  */
-@Data
-@Builder
-@NoArgsConstructor
-@AllArgsConstructor
 public class StatisticsDTO {
     
     /**

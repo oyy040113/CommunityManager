@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 
 // 布局组件
@@ -24,8 +25,11 @@ import Profile from '@/views/profile/Profile.vue'
 import Notifications from '@/views/profile/Notifications.vue'
 
 // 管理页面
+import UserManage from '@/views/admin/UserManage.vue'
 import ClubManage from '@/views/admin/ClubManage.vue'
 import ActivityManage from '@/views/admin/ActivityManage.vue'
+import ActivityApproval from '@/views/admin/ActivityApproval.vue'
+import ClubApproval from '@/views/admin/ClubApproval.vue'
 import Statistics from '@/views/admin/Statistics.vue'
 
 const routes = [
@@ -102,19 +106,37 @@ const routes = [
         path: 'admin/club/:id',
         name: 'ClubManage',
         component: ClubManage,
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true, requiresClubLeaderOrAdmin: true }
       },
       {
         path: 'admin/activities',
         name: 'ActivityManage',
         component: ActivityManage,
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true, requiresClubLeaderOrAdmin: true }
+      },
+      {
+        path: 'admin/activity-approval',
+        name: 'ActivityApproval',
+        component: ActivityApproval,
+        meta: { requiresAuth: true, requiresAdminOrTeacher: true }
+      },
+      {
+        path: 'admin/club-approval',
+        name: 'ClubApproval',
+        component: ClubApproval,
+        meta: { requiresAuth: true, requiresAdminOrTeacher: true }
+      },
+      {
+        path: 'admin/users',
+        name: 'UserManage',
+        component: UserManage,
+        meta: { requiresAuth: true, requiresAdmin: true }
       },
       {
         path: 'admin/statistics',
         name: 'Statistics',
         component: Statistics,
-        meta: { requiresAuth: true }
+        meta: { requiresAuth: true, requiresClubLeaderOrAdmin: true }
       }
     ]
   }
@@ -132,6 +154,15 @@ router.beforeEach((to, from, next) => {
   if (to.meta.requiresAuth && !userStore.isLoggedIn) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.meta.guest && userStore.isLoggedIn) {
+    next({ name: 'Home' })
+  } else if (to.meta.requiresAdmin && !userStore.isAdmin) {
+    ElMessage.error('只有管理员可以访问该页面')
+    next({ name: 'Home' })
+  } else if (to.meta.requiresClubLeaderOrAdmin && !userStore.isClubLeaderOrAdmin) {
+    ElMessage.error('只有社团负责人或管理员可以访问该页面')
+    next({ name: 'Home' })
+  } else if (to.meta.requiresAdminOrTeacher && !userStore.isAdminOrTeacher) {
+    ElMessage.error('只有管理员或指导老师可以访问该页面')
     next({ name: 'Home' })
   } else {
     next()

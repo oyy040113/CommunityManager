@@ -48,3 +48,41 @@ export function uploadAvatar(formData) {
 export function getUserById(id) {
   return request.get(`/users/${id}`)
 }
+
+// ==================== 管理员接口 ====================
+
+// 获取所有用户
+export function getAllUsers(params) {
+  return request.get('/users/admin/list', { params })
+}
+
+// 搜索用户
+export function searchUsersAdmin(params) {
+  return request.get('/users/admin/search', { params })
+}
+
+// 创建用户
+export function createUser(data, password) {
+  return request.post('/users/admin/create', data, {
+    params: { password }
+  })
+}
+
+// 更新用户信息（管理员）
+export function updateUserAdmin(id, data) {
+  return request.put(`/users/admin/${id}`, data)
+}
+
+// 更新用户角色
+export function updateUserRole(id, role) {
+  return request.put(`/users/admin/${id}/role`, null, {
+    params: { role }
+  })
+}
+
+// 更新用户状态（启用/禁用）
+export function setUserStatus(id, enabled) {
+  return request.put(`/users/admin/${id}/status`, null, {
+    params: { enabled }
+  })
+}

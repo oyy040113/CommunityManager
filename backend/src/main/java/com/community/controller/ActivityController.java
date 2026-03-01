@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -28,12 +29,12 @@ public class ActivityController {
     private final AuthService authService;
     
     @PostMapping
-    @Operation(summary = "创建活动", description = "创建新活动")
+    @Operation(summary = "创建活动", description = "创建新活动（需要管理员审批）")
     public ResponseEntity<ApiResponse<ActivityDTO>> createActivity(
             @Valid @RequestBody ActivityDTO.CreateRequest request) {
         User currentUser = authService.getCurrentUser();
         ActivityDTO activity = activityService.createActivity(request, currentUser);
-        return ResponseEntity.ok(ApiResponse.success("活动创建成功", activity));
+        return ResponseEntity.ok(ApiResponse.success("活动创建成功，请等待管理员审批", activity));
     }
     
     @PutMapping("/{id}")
@@ -52,6 +53,14 @@ public class ActivityController {
         User currentUser = authService.getCurrentUser();
         ActivityDTO activity = activityService.publishActivity(id, currentUser);
         return ResponseEntity.ok(ApiResponse.success("活动发布成功", activity));
+    }
+    
+    @DeleteMapping("/{id}")
+    @Operation(summary = "删除活动", description = "删除指定活动")
+    public ResponseEntity<ApiResponse<Void>> deleteActivity(@PathVariable Long id) {
+        User currentUser = authService.getCurrentUser();
+        activityService.deleteActivity(id, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("活动删除成功"));
     }
     
     @GetMapping("/{id}")
@@ -123,11 +132,21 @@ public class ActivityController {
         return ResponseEntity.ok(ApiResponse.success("签到成功", registration));
     }
     
-    @GetMapping("/{id}/registrations")
+    @PostMapping("/{id}/manual-check-in/{userId}")
+    @Operation(summary = "手动签到", description = "社团负责人为参与者手动签到")
+    public ResponseEntity<ApiResponse<ActivityRegistrationDTO>> manualCheckIn(
+            @PathVariable Long id,
+            @PathVariable Long userId) {
+        User currentUser = authService.getCurrentUser();
+        ActivityRegistrationDTO registration = activityService.manualCheckIn(id, userId, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("签到成功", registration));
+    }
+    
+    @GetMapping({"/{id}/registrations", "/{id}/participants"})
     @Operation(summary = "获取报名列表", description = "获取活动的报名列表")
     public ResponseEntity<ApiResponse<Page<ActivityRegistrationDTO>>> getActivityRegistrations(
             @PathVariable Long id,
-            @RequestParam(defaultValue = "REGISTERED") ActivityRegistration.RegistrationStatus status,
+            @RequestParam(required = false) ActivityRegistration.RegistrationStatus status,
             Pageable pageable) {
         Page<ActivityRegistrationDTO> registrations = activityService.getActivityRegistrations(id, status, pageable);
         return ResponseEntity.ok(ApiResponse.success(registrations));
@@ -140,6 +159,22 @@ public class ActivityController {
         Page<ActivityRegistrationDTO> history = activityService.getUserActivityHistory(currentUser.getId(), pageable);
         return ResponseEntity.ok(ApiResponse.success(history));
     }
+
+    @GetMapping("/my-registrations")
+    @Operation(summary = "我的报名", description = "获取当前用户的报名列表")
+    public ResponseEntity<ApiResponse<Page<ActivityRegistrationDTO>>> getMyRegistrations(Pageable pageable) {
+        User currentUser = authService.getCurrentUser();
+        Page<ActivityRegistrationDTO> regs = activityService.getUserActivityHistory(currentUser.getId(), pageable);
+        return ResponseEntity.ok(ApiResponse.success(regs));
+    }
+
+    @GetMapping("/my-feedbacks")
+    @Operation(summary = "我的评价", description = "获取当前用户提交的活动评价")
+    public ResponseEntity<ApiResponse<Page<ActivityFeedbackDTO>>> getMyFeedbacks(Pageable pageable) {
+        User currentUser = authService.getCurrentUser();
+        Page<ActivityFeedbackDTO> feedbacks = activityService.getUserFeedbacks(currentUser.getId(), pageable);
+        return ResponseEntity.ok(ApiResponse.success(feedbacks));
+    }
     
     // 活动反馈
     
@@ -148,6 +183,18 @@ public class ActivityController {
     public ResponseEntity<ApiResponse<ActivityFeedbackDTO>> submitFeedback(
             @Valid @RequestBody ActivityFeedbackDTO.CreateRequest request) {
         User currentUser = authService.getCurrentUser();
+        ActivityFeedbackDTO feedback = activityService.submitFeedback(request, currentUser);
+        return ResponseEntity.ok(ApiResponse.success("反馈提交成功", feedback));
+    }
+
+    @PostMapping("/{activityId}/feedback")
+    @Operation(summary = "提交活动反馈（路径参数）", description = "通过活动ID路径参数对参与活动提交评价")
+    public ResponseEntity<ApiResponse<ActivityFeedbackDTO>> submitFeedbackByPath(
+            @PathVariable Long activityId,
+            @RequestBody ActivityFeedbackDTO.CreateRequest request) {
+        User currentUser = authService.getCurrentUser();
+        // Fill activityId from path
+        request.setActivityId(activityId);
         ActivityFeedbackDTO feedback = activityService.submitFeedback(request, currentUser);
         return ResponseEntity.ok(ApiResponse.success("反馈提交成功", feedback));
     }
@@ -178,5 +225,41 @@ public class ActivityController {
     public ResponseEntity<ApiResponse<ActivityService.ActivityStatsDTO>> getActivityStats(@PathVariable Long id) {
         ActivityService.ActivityStatsDTO stats = activityService.generateActivityStats(id);
         return ResponseEntity.ok(ApiResponse.success(stats));
+    }
+    
+    // ==================== 管理员接口 ====================
+    
+    @GetMapping("/admin/pending")
+    @Operation(summary = "获取待审批活动", description = "管理员/指导老师获取待审批的活动列表")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<Page<ActivityDTO>>> getPendingActivities(Pageable pageable) {
+        Page<ActivityDTO> activities = activityService.getPendingActivities(pageable);
+        return ResponseEntity.ok(ApiResponse.success(activities));
+    }
+    
+    @GetMapping("/admin/search")
+    @Operation(summary = "管理员搜索活动", description = "管理员/指导老师根据多条件搜索活动")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<Page<ActivityDTO>>> searchActivitiesAdmin(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Long clubId,
+            @RequestParam(required = false) Activity.ActivityStatus status,
+            @RequestParam(required = false) Activity.ApprovalStatus approvalStatus,
+            Pageable pageable) {
+        Page<ActivityDTO> activities = activityService.searchActivitiesAdmin(
+                keyword, clubId, status, approvalStatus, pageable);
+        return ResponseEntity.ok(ApiResponse.success(activities));
+    }
+    
+    @PutMapping("/admin/{id}/approve")
+    @Operation(summary = "审批活动", description = "管理员/指导老师审批活动")
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ResponseEntity<ApiResponse<ActivityDTO>> approveActivity(
+            @PathVariable Long id,
+            @Valid @RequestBody ActivityDTO.ApprovalRequest request) {
+        User admin = authService.getCurrentUser();
+        ActivityDTO activity = activityService.approveActivity(id, request, admin);
+        return ResponseEntity.ok(ApiResponse.success(
+                request.getApproved() ? "活动审批通过" : "活动审批拒绝", activity));
     }
 }

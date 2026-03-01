@@ -82,7 +82,7 @@
             <p class="club-desc">{{ club.purpose || '暂无简介' }}</p>
             <div class="club-stats">
               <span><el-icon><User /></el-icon> {{ club.memberCount }} 成员</span>
-              <span><el-icon><Star /></el-icon> {{ club.activityScore?.toFixed(1) }} 活跃度</span>
+              <span><el-icon><Star /></el-icon> {{ club.feedbackCount || 0 }}人评价 · {{ (club.averageRating || 0).toFixed(1) }}分</span>
             </div>
           </el-card>
         </el-col>
@@ -126,6 +126,7 @@
 import { ref, onMounted } from 'vue'
 import { getTopClubs } from '@/api/club'
 import { getUpcomingActivities } from '@/api/activity'
+import { getPublicOverviewStats } from '@/api/statistics'
 import { 
   OfficeBuilding, User, Calendar, TrendCharts, 
   ArrowRight, Star, Clock, Location 
@@ -169,19 +170,21 @@ const formatDate = (date) => dayjs(date).format('MM-DD HH:mm')
 
 onMounted(async () => {
   try {
+    // 获取首页统计（真实数据）
+    const overviewRes = await getPublicOverviewStats()
+    const overview = overviewRes.data || {}
+    stats.value.clubCount = Number(overview.clubCount || 0)
+    stats.value.userCount = Number(overview.userCount || 0)
+    stats.value.activityCount = Number(overview.activityCount || 0)
+    stats.value.participationCount = Number(overview.participationCount || 0)
+
     // 获取热门社团
     const clubRes = await getTopClubs(4)
     topClubs.value = clubRes.data || []
-    stats.value.clubCount = topClubs.value.length
     
     // 获取最新活动
     const activityRes = await getUpcomingActivities({ size: 3 })
     upcomingActivities.value = activityRes.data?.content || []
-    stats.value.activityCount = upcomingActivities.value.length
-    
-    // 模拟其他统计数据
-    stats.value.userCount = 128
-    stats.value.participationCount = 560
   } catch (e) {
     console.error('加载数据失败', e)
   }

@@ -41,12 +41,26 @@ public class ActivityService {
     private final NotificationService notificationService;
     
     /**
-     * 创建活动
+     * 将Activity实体转换为DTO并填充签到人数
+     */
+    private ActivityDTO enrichDTO(Activity activity) {
+        ActivityDTO dto = ActivityDTO.fromEntity(activity);
+        dto.setCheckedInCount((int) registrationRepository.countCheckedInByActivityId(activity.getId()));
+        return dto;
+    }
+    
+    /**
+     * 创建活动（需要审批）
      */
     @Transactional
     public ActivityDTO createActivity(ActivityDTO.CreateRequest request, User organizer) {
         Club club = clubRepository.findById(request.getClubId())
                 .orElseThrow(() -> new BusinessException("社团不存在"));
+        
+        // 检查社团状态
+        if (club.getStatus() != Club.ClubStatus.ACTIVE) {
+            throw new BusinessException("该社团未激活，无法创建活动");
+        }
         
         // 检查权限
         checkActivityManagePermission(club, organizer);
@@ -55,8 +69,8 @@ public class ActivityService {
         if (request.getEndTime().isBefore(request.getStartTime())) {
             throw new BusinessException("结束时间不能早于开始时间");
         }
-        if (request.getRegistrationDeadline().isAfter(request.getStartTime())) {
-            throw new BusinessException("报名截止时间不能晚于活动开始时间");
+        if (request.getRegistrationDeadline().isAfter(request.getEndTime())) {
+            throw new BusinessException("报名截止时间不能晚于活动结束时间");
         }
         
         Activity activity = Activity.builder()
@@ -68,11 +82,12 @@ public class ActivityService {
                 .endTime(request.getEndTime())
                 .location(request.getLocation())
                 .coverImage(request.getCoverImage())
-                .maxParticipants(request.getMaxParticipants())
+            .maxParticipants(request.getMaxParticipants() != null ? request.getMaxParticipants() : 0)
                 .currentParticipants(0)
                 .registrationDeadline(request.getRegistrationDeadline())
                 .status(Activity.ActivityStatus.DRAFT)
-                .checkInType(request.getCheckInType())
+                .approvalStatus(Activity.ApprovalStatus.PENDING) // 需要审批
+            .checkInType(request.getCheckInType() != null ? request.getCheckInType() : Activity.CheckInType.QR_CODE)
                 .customForm(request.getCustomForm())
                 .build();
         
@@ -82,9 +97,93 @@ public class ActivityService {
         club.setActivityCount(club.getActivityCount() + 1);
         clubRepository.save(club);
         
-        log.info("活动创建成功: {} by {}", activity.getTitle(), organizer.getUsername());
+        log.info("活动创建成功（待审批）: {} by {}", activity.getTitle(), organizer.getUsername());
         
-        return ActivityDTO.fromEntity(activity);
+        return enrichDTO(activity);
+    }
+    
+    /**
+     * 审批活动（管理员）
+     */
+    @Transactional
+    public ActivityDTO approveActivity(Long activityId, ActivityDTO.ApprovalRequest request, User admin) {
+        Activity activity = getActivityEntity(activityId);
+        
+        if (activity.getApprovalStatus() != Activity.ApprovalStatus.PENDING) {
+            throw new BusinessException("该活动不在待审批状态");
+        }
+        
+        if (request.getApproved()) {
+            activity.setApprovalStatus(Activity.ApprovalStatus.APPROVED);
+            activity.setApprovedBy(admin);
+            activity.setApprovedAt(LocalDateTime.now());
+            
+            // 审批通过后自动发布活动
+            if (activity.getStatus() == Activity.ActivityStatus.DRAFT) {
+                LocalDateTime now = LocalDateTime.now();
+                
+                // 根据当前时间和活动时间判断状态
+                if (now.isAfter(activity.getEndTime())) {
+                    activity.setStatus(Activity.ActivityStatus.COMPLETED);
+                    log.info("活动审批通过，但活动已结束: {}", activity.getTitle());
+                } else if (now.isAfter(activity.getStartTime())) {
+                    activity.setStatus(Activity.ActivityStatus.ONGOING);
+                    log.info("活动审批通过，活动已开始: {}", activity.getTitle());
+                } else {
+                    activity.setStatus(Activity.ActivityStatus.PUBLISHED);
+                    log.info("活动审批通过并自动发布: {}", activity.getTitle());
+                }
+                
+                // 生成签到二维码
+                if (activity.getCheckInType() == Activity.CheckInType.QR_CODE) {
+                    String qrCode = generateQRCode(activity.getId());
+                    activity.setQrCodeUrl(qrCode);
+                }
+            }
+            
+            // 通知组织者
+            notificationService.sendActivityApprovedNotification(activity.getOrganizer(), activity);
+            
+            // 通知社团成员
+            notificationService.sendActivityPublishedNotification(activity);
+        } else {
+            activity.setApprovalStatus(Activity.ApprovalStatus.REJECTED);
+            activity.setRejectReason(request.getRejectReason());
+            
+            // 通知组织者
+            notificationService.sendActivityRejectedNotification(activity.getOrganizer(), activity, request.getRejectReason());
+            
+            log.info("活动审批拒绝: {}", activity.getTitle());
+        }
+        
+        activity = activityRepository.save(activity);
+        return enrichDTO(activity);
+    }
+    
+    /**
+     * 获取待审批活动列表（管理员）
+     */
+    public Page<ActivityDTO> getPendingActivities(Pageable pageable) {
+        return activityRepository.findPendingActivities(pageable)
+                .map(this::enrichDTO);
+    }
+    
+    /**
+     * 管理员搜索活动（支持所有状态）
+     */
+    public Page<ActivityDTO> searchActivitiesAdmin(String keyword, Long clubId, 
+                                                    Activity.ActivityStatus status,
+                                                    Activity.ApprovalStatus approvalStatus, 
+                                                    Pageable pageable) {
+        return activityRepository.searchActivitiesAdmin(keyword, clubId, status, approvalStatus, pageable)
+                .map(this::enrichDTO);
+    }
+    
+    /**
+     * 统计待审批活动数
+     */
+    public long countPendingActivities() {
+        return activityRepository.countPendingActivities();
     }
     
     /**
@@ -131,10 +230,37 @@ public class ActivityService {
             activity.setStatus(request.getStatus());
         }
         
+        // 验证更新后的时间
+        if (activity.getEndTime().isBefore(activity.getStartTime())) {
+            throw new BusinessException("结束时间不能早于开始时间");
+        }
+        if (activity.getRegistrationDeadline().isAfter(activity.getEndTime())) {
+            throw new BusinessException("报名截止时间不能晚于活动结束时间");
+        }
+        
+        // 编辑后重新检查活动状态
+        LocalDateTime now = LocalDateTime.now();
+        if (activity.getStatus() == Activity.ActivityStatus.PUBLISHED) {
+            // 如果活动已发布，检查是否应该变为进行中或已完成
+            if (now.isAfter(activity.getEndTime())) {
+                activity.setStatus(Activity.ActivityStatus.COMPLETED);
+                log.info("活动已结束，自动更新为已完成状态: {}", activity.getTitle());
+            } else if (now.isAfter(activity.getStartTime())) {
+                activity.setStatus(Activity.ActivityStatus.ONGOING);
+                log.info("活动已开始，自动更新为进行中状态: {}", activity.getTitle());
+            }
+        } else if (activity.getStatus() == Activity.ActivityStatus.ONGOING) {
+            // 如果活动进行中，检查是否已结束
+            if (now.isAfter(activity.getEndTime())) {
+                activity.setStatus(Activity.ActivityStatus.COMPLETED);
+                log.info("活动已结束，自动更新为已完成状态: {}", activity.getTitle());
+            }
+        }
+        
         activity = activityRepository.save(activity);
         log.info("活动更新: {}", activity.getTitle());
         
-        return ActivityDTO.fromEntity(activity);
+        return enrichDTO(activity);
     }
     
     /**
@@ -145,14 +271,25 @@ public class ActivityService {
         Activity activity = getActivityEntity(activityId);
         checkActivityManagePermission(activity.getClub(), operator);
         
+        // 如果已经发布，直接返回
+        if (activity.getStatus() == Activity.ActivityStatus.PUBLISHED) {
+            log.info("活动已经是发布状态: {}", activity.getTitle());
+            return enrichDTO(activity);
+        }
+        
         if (activity.getStatus() != Activity.ActivityStatus.DRAFT) {
             throw new BusinessException("只有草稿状态的活动可以发布");
+        }
+        
+        // 检查审批状态
+        if (activity.getApprovalStatus() != Activity.ApprovalStatus.APPROVED) {
+            throw new BusinessException("活动未通过审批，无法发布");
         }
         
         activity.setStatus(Activity.ActivityStatus.PUBLISHED);
         
         // 生成签到二维码
-        if (activity.getCheckInType() == Activity.CheckInType.QR_CODE) {
+        if (activity.getCheckInType() == Activity.CheckInType.QR_CODE && activity.getQrCodeUrl() == null) {
             String qrCode = generateQRCode(activity.getId());
             activity.setQrCodeUrl(qrCode);
         }
@@ -164,21 +301,86 @@ public class ActivityService {
         
         log.info("活动发布: {}", activity.getTitle());
         
-        return ActivityDTO.fromEntity(activity);
+        return enrichDTO(activity);
+    }
+    
+    /**
+     * 删除活动
+     */
+    @Transactional
+    public void deleteActivity(Long activityId, User operator) {
+        Activity activity = getActivityEntity(activityId);
+        Club club = activity.getClub();
+        
+        // 检查权限
+        checkActivityManagePermission(club, operator);
+        
+        // 检查活动状态，进行中的活动不能删除
+        if (activity.getStatus() == Activity.ActivityStatus.ONGOING) {
+            throw new BusinessException("进行中的活动不能删除");
+        }
+        
+        // 删除相关的报名记录
+        registrationRepository.deleteByActivityId(activityId);
+        
+        // 删除相关的反馈记录
+        feedbackRepository.deleteByActivityId(activityId);
+        
+        // 删除活动
+        activityRepository.delete(activity);
+        
+        // 更新社团活动数
+        club.setActivityCount(Math.max(0, club.getActivityCount() - 1));
+        clubRepository.save(club);
+        
+        log.info("活动删除成功: {} by {}", activity.getTitle(), operator.getUsername());
     }
     
     /**
      * 获取活动详情
      */
+    @Transactional
     public ActivityDTO getActivityById(Long activityId, User currentUser) {
         Activity activity = getActivityEntity(activityId);
-        ActivityDTO dto = ActivityDTO.fromEntity(activity);
+        
+        // 自动更新活动状态（如果已批准）
+        if (activity.getApprovalStatus() == Activity.ApprovalStatus.APPROVED) {
+            LocalDateTime now = LocalDateTime.now();
+            boolean statusChanged = false;
+            
+            if (activity.getStatus() == Activity.ActivityStatus.PUBLISHED) {
+                // 如果活动已发布，检查是否应该变为进行中或已完成
+                if (now.isAfter(activity.getEndTime())) {
+                    activity.setStatus(Activity.ActivityStatus.COMPLETED);
+                    statusChanged = true;
+                    log.info("活动状态自动更新为已完成: {}", activity.getTitle());
+                } else if (now.isAfter(activity.getStartTime())) {
+                    activity.setStatus(Activity.ActivityStatus.ONGOING);
+                    statusChanged = true;
+                    log.info("活动状态自动更新为进行中: {}", activity.getTitle());
+                }
+            } else if (activity.getStatus() == Activity.ActivityStatus.ONGOING) {
+                // 如果活动进行中，检查是否已结束
+                if (now.isAfter(activity.getEndTime())) {
+                    activity.setStatus(Activity.ActivityStatus.COMPLETED);
+                    statusChanged = true;
+                    log.info("活动状态自动更新为已完成: {}", activity.getTitle());
+                }
+            }
+            
+            if (statusChanged) {
+                activity = activityRepository.save(activity);
+            }
+        }
+        
+        ActivityDTO dto = enrichDTO(activity);
         
         // 检查当前用户是否已报名
         if (currentUser != null) {
             registrationRepository.findByUserIdAndActivityId(currentUser.getId(), activityId)
                     .ifPresent(reg -> {
-                        dto.setIsRegistered(reg.getStatus() == ActivityRegistration.RegistrationStatus.REGISTERED);
+                        dto.setIsRegistered(reg.getStatus() == ActivityRegistration.RegistrationStatus.REGISTERED 
+                                || reg.getStatus() == ActivityRegistration.RegistrationStatus.ATTENDED);
                         dto.setIsCheckedIn(reg.getCheckedIn());
                     });
         }
@@ -200,7 +402,7 @@ public class ActivityService {
     public Page<ActivityDTO> searchActivities(String keyword, Long clubId, 
                                                Activity.ActivityStatus status, Pageable pageable) {
         return activityRepository.searchActivities(keyword, clubId, status, pageable)
-                .map(ActivityDTO::fromEntity);
+                .map(this::enrichDTO);
     }
     
     /**
@@ -208,7 +410,7 @@ public class ActivityService {
      */
     public Page<ActivityDTO> getUpcomingActivities(Pageable pageable) {
         return activityRepository.findUpcomingActivities(LocalDateTime.now(), pageable)
-                .map(ActivityDTO::fromEntity);
+                .map(this::enrichDTO);
     }
     
     /**
@@ -216,7 +418,7 @@ public class ActivityService {
      */
     public Page<ActivityDTO> getClubActivities(Long clubId, Pageable pageable) {
         return activityRepository.findByClubId(clubId, pageable)
-                .map(ActivityDTO::fromEntity);
+                .map(this::enrichDTO);
     }
     
     /**
@@ -334,11 +536,51 @@ public class ActivityService {
     }
     
     /**
+     * 社团负责人手动签到参与者
+     */
+    @Transactional
+    public ActivityRegistrationDTO manualCheckIn(Long activityId, Long userId, User operator) {
+        Activity activity = getActivityEntity(activityId);
+        
+        // 检查权限：只有社团负责人或管理员可以手动签到
+        checkActivityManagePermission(activity.getClub(), operator);
+        
+        ActivityRegistration registration = registrationRepository
+                .findByUserIdAndActivityId(userId, activityId)
+                .orElseThrow(() -> new BusinessException("该用户未报名此活动"));
+        
+        if (registration.getCheckedIn()) {
+            throw new BusinessException("该用户已签到");
+        }
+        
+        registration.setCheckedIn(true);
+        registration.setCheckInTime(LocalDateTime.now());
+        registration.setStatus(ActivityRegistration.RegistrationStatus.ATTENDED);
+        registration = registrationRepository.save(registration);
+        
+        // 更新用户参与次数
+        clubMemberRepository.findByUserIdAndClubId(userId, activity.getClub().getId())
+                .ifPresent(member -> {
+                    member.setActivityParticipation(member.getActivityParticipation() + 1);
+                    member.setContributionScore(member.getContributionScore() + 1);
+                    clubMemberRepository.save(member);
+                });
+        
+        log.info("手动签到: {} 为用户ID {} 签到活动 {}", operator.getUsername(), userId, activity.getTitle());
+        
+        return ActivityRegistrationDTO.fromEntity(registration);
+    }
+    
+    /**
      * 获取活动报名列表
      */
     public Page<ActivityRegistrationDTO> getActivityRegistrations(Long activityId, 
                                                                     ActivityRegistration.RegistrationStatus status,
                                                                     Pageable pageable) {
+        if (status == null) {
+            return registrationRepository.findByActivityId(activityId, pageable)
+                    .map(ActivityRegistrationDTO::fromEntity);
+        }
         return registrationRepository.findByActivityIdAndStatus(activityId, status, pageable)
                 .map(ActivityRegistrationDTO::fromEntity);
     }
@@ -403,6 +645,14 @@ public class ActivityService {
         return feedbackRepository.findByActivityIdOrderByCreatedAtDesc(activityId, pageable)
                 .map(ActivityFeedbackDTO::fromEntity);
     }
+
+    /**
+     * 获取当前用户的反馈
+     */
+    public Page<ActivityFeedbackDTO> getUserFeedbacks(Long userId, Pageable pageable) {
+        return feedbackRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
+                .map(ActivityFeedbackDTO::fromEntity);
+    }
     
     /**
      * 提交活动总结
@@ -423,7 +673,7 @@ public class ActivityService {
         
         log.info("活动总结提交: {}", activity.getTitle());
         
-        return ActivityDTO.fromEntity(activity);
+        return enrichDTO(activity);
     }
     
     /**
@@ -463,32 +713,32 @@ public class ActivityService {
         }
         
         if (member.getRole() != ClubMember.MemberRole.LEADER && 
-            member.getRole() != ClubMember.MemberRole.VICE_LEADER &&
-            member.getRole() != ClubMember.MemberRole.ADMIN &&
-            member.getRole() != ClubMember.MemberRole.PLANNER) {
+            member.getRole() != ClubMember.MemberRole.TEACHER) {
             throw new BusinessException("您没有权限管理该社团活动");
         }
     }
     
     private String generateQRCode(Long activityId) {
+        // 生成简短的签到码，而不是完整的图片
+        // 前端可以根据这个码生成二维码显示
         try {
-            String content = "ACTIVITY_CHECK_IN:" + activityId + ":" + UUID.randomUUID().toString();
-            QRCodeWriter qrCodeWriter = new QRCodeWriter();
-            BitMatrix bitMatrix = qrCodeWriter.encode(content, BarcodeFormat.QR_CODE, 200, 200);
-            
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            MatrixToImageWriter.writeToStream(bitMatrix, "PNG", outputStream);
-            
-            return "data:image/png;base64," + Base64.getEncoder().encodeToString(outputStream.toByteArray());
-        } catch (WriterException | java.io.IOException e) {
-            log.error("生成二维码失败", e);
-            return null;
+            String checkInCode = "CHECKIN_" + activityId + "_" + UUID.randomUUID().toString().substring(0, 8);
+            log.info("生成签到码: {}", checkInCode);
+            return checkInCode;
+        } catch (Exception e) {
+            log.error("生成签到码失败", e);
+            return "CHECKIN_" + activityId + "_DEFAULT";
         }
     }
     
     private boolean validateQRCode(Activity activity, String qrCode) {
-        // 简化验证：实际项目中应该有更复杂的验证逻辑
-        return qrCode != null && qrCode.startsWith("ACTIVITY_CHECK_IN:" + activity.getId());
+        // 验证签到码格式
+        if (qrCode == null || activity.getQrCodeUrl() == null) {
+            return false;
+        }
+        // 简化验证：检查是否匹配存储的签到码
+        return qrCode.equals(activity.getQrCodeUrl()) || 
+               qrCode.startsWith("CHECKIN_" + activity.getId());
     }
     
     private void updateActivityRating(Activity activity) {

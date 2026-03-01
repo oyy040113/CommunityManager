@@ -63,7 +63,6 @@ public class ActivityFeedbackDTO {
     @AllArgsConstructor
     public static class CreateRequest {
         
-        @NotNull(message = "活动ID不能为空")
         private Long activityId;
         
         @NotNull(message = "评分不能为空")

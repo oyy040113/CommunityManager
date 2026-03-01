@@ -5,6 +5,11 @@ export function getOverviewStats() {
   return request.get('/statistics/overview')
 }
 
+// 获取首页公共统计数据
+export function getPublicOverviewStats() {
+  return request.get('/statistics/public-overview')
+}
+
 // 获取社团统计数据
 export function getClubStats(clubId) {
   return request.get(`/statistics/clubs/${clubId}`)

@@ -36,6 +36,8 @@ spring:
       hibernate:
         format_sql: true
         dialect: org.hibernate.dialect.H2Dialect
+        jdbc:
+          time_zone: UTC
         # 生产环境使用MySQL方言
         # dialect: org.hibernate.dialect.MySQL8Dialect
   
@@ -45,10 +47,17 @@ spring:
       enabled: true
       max-file-size: 10MB
       max-request-size: 20MB
+  
+  # Jackson 配置
+  jackson:
+    time-zone: UTC
+    date-format: yyyy-MM-dd'T'HH:mm:ss.SSSXXX
+    serialization:
+      write-dates-as-timestamps: false
 
 # JWT配置
 jwt:
-  secret: YourSuperSecretKeyForJWTTokenGenerationMustBeAtLeast256BitsLong2024CommunityManager
+  secret: YourSuperSecretKeyForJWTTokenGenerationMustBeAtLeast256BitsLong2026CommunityManager
   expiration: 86400000 # 24小时
   refresh-expiration: 604800000 # 7天
 

@@ -55,6 +55,11 @@ export function checkIn(id, qrCode) {
   return request.post(`/activities/${id}/check-in`, { qrCode })
 }
 
+// 社团负责人手动签到
+export function manualCheckIn(activityId, userId) {
+  return request.post(`/activities/${activityId}/manual-check-in/${userId}`)
+}
+
 // 获取活动参与者
 export function getActivityParticipants(id, params) {
   return request.get(`/activities/${id}/participants`, { params })
@@ -93,4 +98,21 @@ export function submitSummary(id, data) {
 // 获取活动统计
 export function getActivityStats(id) {
   return request.get(`/activities/${id}/stats`)
+}
+
+// ==================== Admin/Teacher ====================
+
+// 获取待审批活动
+export function getPendingActivities(params) {
+  return request.get('/activities/admin/pending', { params })
+}
+
+// 管理员/老师搜索活动
+export function searchActivitiesAdmin(params) {
+  return request.get('/activities/admin/search', { params })
+}
+
+// 审批活动
+export function approveActivity(id, data) {
+  return request.put(`/activities/admin/${id}/approve`, data)
 }

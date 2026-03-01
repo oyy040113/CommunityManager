@@ -53,6 +53,10 @@ public class AuthService {
             throw new BusinessException("学号已被使用");
         }
         
+        // 判断是否为第一个用户，如果是则设为管理员
+        long totalUsers = userRepository.count();
+        User.UserRole role = (totalUsers == 0) ? User.UserRole.ADMIN : User.UserRole.USER;
+        
         // 创建用户
         User user = User.builder()
                 .username(request.getUsername())
@@ -64,12 +68,12 @@ public class AuthService {
                 .department(request.getDepartment())
                 .major(request.getMajor())
                 .grade(request.getGrade())
-                .role(User.UserRole.MEMBER)
+                .role(role)
                 .enabled(true)
                 .build();
         
         user = userRepository.save(user);
-        log.info("用户注册成功: {}", user.getUsername());
+        log.info("用户注册成功: {} (角色: {})", user.getUsername(), role.name());
         
         // 生成token
         return generateAuthResponse(user);

@@ -138,12 +138,9 @@
         </el-table-column>
         <el-table-column prop="memberCount" label="成员数" width="100" />
         <el-table-column prop="activityCount" label="活动数" width="100" />
-        <el-table-column label="活跃指数" width="150">
+        <el-table-column label="活动评价" width="180">
           <template #default="{ row }">
-            <el-progress 
-              :percentage="Math.min(row.activityScore || 0, 100)" 
-              :color="getScoreColor(row.activityScore)"
-            />
+            <span>{{ row.feedbackCount || 0 }}人 · {{ (row.averageRating || 0).toFixed(1) }}分</span>
           </template>
         </el-table-column>
       </el-table>
@@ -155,7 +152,8 @@
 import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getMyCreatedClubs, getClub, getClubActivities, getClubMembers } from '@/api/club'
+import { getMyCreatedClubs, getClubActivities } from '@/api/club'
+import { getOverviewStats } from '@/api/statistics'
 import { ElMessage } from 'element-plus'
 import { User, OfficeBuilding, Calendar, Star } from '@element-plus/icons-vue'
 
@@ -206,32 +204,45 @@ const getScoreColor = (score) => {
 
 const loadMyClubs = async () => {
   try {
-    const res = await getMyCreatedClubs()
-    myClubs.value = res.data || []
-    
-    // 计算概览数据
-    let totalMembers = 0
-    let totalActivities = 0
-    let totalRatings = []
-    
-    for (const club of myClubs.value) {
-      totalMembers += club.memberCount || 0
-      totalActivities += club.activityCount || 0
-      if (club.averageRating) {
-        totalRatings.push(club.averageRating)
+    // 尝试使用统计概览接口
+    try {
+      const overviewRes = await getOverviewStats()
+      if (overviewRes.data) {
+        overview.totalMembers = overviewRes.data.totalMembers || 0
+        overview.totalClubs = overviewRes.data.totalClubs || 0
+        overview.totalActivities = overviewRes.data.totalActivities || 0
+        overview.averageRating = overviewRes.data.averageRating || 0
+        myClubs.value = overviewRes.data.clubs || []
       }
+    } catch {
+      // 如果统计接口失败，使用我管理的社团接口
+      const res = await getMyCreatedClubs()
+      myClubs.value = res.data || []
+      
+      // 计算概览数据
+      let totalMembers = 0
+      let totalActivities = 0
+      let totalRatings = []
+      
+      for (const club of myClubs.value) {
+        totalMembers += club.memberCount || 0
+        totalActivities += club.activityCount || 0
+        if ((club.averageRating || 0) > 0) {
+          totalRatings.push(club.averageRating)
+        }
+      }
+      
+      overview.totalMembers = totalMembers
+      overview.totalClubs = myClubs.value.length
+      overview.totalActivities = totalActivities
+      overview.averageRating = totalRatings.length > 0 
+        ? totalRatings.reduce((a, b) => a + b, 0) / totalRatings.length 
+        : 0
     }
-    
-    overview.totalMembers = totalMembers
-    overview.totalClubs = myClubs.value.length
-    overview.totalActivities = totalActivities
-    overview.averageRating = totalRatings.length > 0 
-      ? totalRatings.reduce((a, b) => a + b, 0) / totalRatings.length 
-      : 0
     
     // 计算排行榜
     clubRankings.value = [...myClubs.value].sort((a, b) => 
-      (b.activityScore || 0) - (a.activityScore || 0)
+      (b.averageRating || 0) - (a.averageRating || 0) || (b.feedbackCount || 0) - (a.feedbackCount || 0)
     )
     
     if (myClubs.value.length > 0) {
