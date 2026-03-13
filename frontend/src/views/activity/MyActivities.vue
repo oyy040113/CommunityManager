@@ -9,7 +9,7 @@
           <el-table-column label="活动" min-width="300">
             <template #default="{ row }">
               <div class="activity-cell" @click="$router.push(`/activities/${row.activity?.id}`)">
-                <img :src="row.activity?.coverImage || '/default-cover.jpg'" class="cover-thumb" />
+                <img :src="row.activity?.coverImage || '/default-cover.svg'" class="cover-thumb" />
                 <div class="activity-info">
                   <h4>{{ row.activity?.title }}</h4>
                   <span class="club-name">{{ row.activity?.clubName }}</span>

@@ -429,13 +429,26 @@ public class ActivityService {
                                                      ActivityRegistrationDTO.RegisterRequest request, 
                                                      User user) {
         Activity activity = getActivityEntity(activityId);
+        LocalDateTime now = LocalDateTime.now();
+
+        // 先按当前时间归一化状态，避免旧状态导致误判（如仍为DRAFT/REGISTRATION_CLOSED）
+        activity = refreshActivityStatusForRegistration(activity, now);
+
+        if (activity.getApprovalStatus() != Activity.ApprovalStatus.APPROVED) {
+            throw new BusinessException("活动未通过审批，暂不可报名");
+        }
+
+        if (activity.getStatus() == Activity.ActivityStatus.CANCELLED) {
+            throw new BusinessException("活动已取消");
+        }
+
+        if (now.isAfter(activity.getRegistrationDeadline())) {
+            throw new BusinessException("报名已截止");
+        }
         
         // 检查活动状态
         if (activity.getStatus() != Activity.ActivityStatus.PUBLISHED) {
             throw new BusinessException("活动未开放报名");
-        }
-        if (LocalDateTime.now().isAfter(activity.getRegistrationDeadline())) {
-            throw new BusinessException("报名已截止");
         }
         if (activity.getMaxParticipants() > 0 && 
             activity.getCurrentParticipants() >= activity.getMaxParticipants()) {
@@ -464,6 +477,35 @@ public class ActivityService {
         log.info("用户报名活动: {} -> {}", user.getUsername(), activity.getTitle());
         
         return ActivityRegistrationDTO.fromEntity(registration);
+    }
+
+    /**
+     * 报名前根据时间窗口修正活动状态，避免状态滞后导致可报名活动被误拦截。
+     */
+    private Activity refreshActivityStatusForRegistration(Activity activity, LocalDateTime now) {
+        if (activity.getApprovalStatus() != Activity.ApprovalStatus.APPROVED
+                || activity.getStatus() == Activity.ActivityStatus.CANCELLED) {
+            return activity;
+        }
+
+        Activity.ActivityStatus normalizedStatus;
+        if (!now.isBefore(activity.getEndTime())) {
+            normalizedStatus = Activity.ActivityStatus.COMPLETED;
+        } else if (!now.isBefore(activity.getStartTime())) {
+            normalizedStatus = Activity.ActivityStatus.ONGOING;
+        } else if (!now.isBefore(activity.getRegistrationDeadline())) {
+            normalizedStatus = Activity.ActivityStatus.REGISTRATION_CLOSED;
+        } else {
+            normalizedStatus = Activity.ActivityStatus.PUBLISHED;
+        }
+
+        if (activity.getStatus() != normalizedStatus) {
+            activity.setStatus(normalizedStatus);
+            activity = activityRepository.save(activity);
+            log.info("活动状态自动修正: {} -> {}", activity.getTitle(), normalizedStatus);
+        }
+
+        return activity;
     }
     
     /**

@@ -37,7 +37,7 @@
     <el-row :gutter="20" v-loading="loading">
       <el-col :span="8" v-for="activity in activities" :key="activity.id">
         <el-card class="activity-card" shadow="hover" @click="$router.push(`/activities/${activity.id}`)">
-          <div class="activity-cover" :style="{ backgroundImage: `url(${activity.coverImage || '/default-cover.jpg'})` }">
+          <div class="activity-cover" :style="{ backgroundImage: `url(${activity.coverImage || '/default-cover.svg'})` }">
             <el-tag :type="getStatusType(activity)" class="status-tag">
               {{ getStatusText(activity) }}
             </el-tag>
@@ -112,27 +112,35 @@ const pagination = reactive({
   size: 6
 })
 
-const getStatusType = (activity) => {
+const statusMap = {
+  DRAFT: { text: '草稿', type: 'info' },
+  PUBLISHED: { text: '报名中', type: 'success' },
+  REGISTRATION_CLOSED: { text: '报名截止', type: 'warning' },
+  ONGOING: { text: '进行中', type: 'warning' },
+  COMPLETED: { text: '已结束', type: 'info' },
+  CANCELLED: { text: '已取消', type: 'danger' }
+}
+
+const getStatusMetaByTime = (activity) => {
   const now = new Date()
   const start = new Date(activity.startTime)
   const end = new Date(activity.endTime)
   const regEnd = new Date(activity.registrationDeadline)
-  
-  if (now < regEnd) return 'success'
-  if (now >= start && now <= end) return 'warning'
-  return 'info'
+
+  if (now < regEnd) return { text: '报名中', type: 'success' }
+  if (now < start) return { text: '即将开始', type: 'info' }
+  if (now >= start && now <= end) return { text: '进行中', type: 'warning' }
+  return { text: '已结束', type: 'info' }
+}
+
+const getStatusType = (activity) => {
+  const meta = statusMap[activity.status] || getStatusMetaByTime(activity)
+  return meta.type
 }
 
 const getStatusText = (activity) => {
-  const now = new Date()
-  const start = new Date(activity.startTime)
-  const end = new Date(activity.endTime)
-  const regEnd = new Date(activity.registrationDeadline)
-  
-  if (now < regEnd) return '报名中'
-  if (now < start) return '即将开始'
-  if (now >= start && now <= end) return '进行中'
-  return '已结束'
+  const meta = statusMap[activity.status] || getStatusMetaByTime(activity)
+  return meta.text
 }
 
 const formatDateTime = (dateStr) => {

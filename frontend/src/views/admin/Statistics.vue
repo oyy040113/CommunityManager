@@ -152,7 +152,7 @@
 import { ref, reactive, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getMyCreatedClubs, getClubActivities } from '@/api/club'
+import { getMyManagedClubs, searchClubsAdmin, getClubActivities } from '@/api/club'
 import { getOverviewStats } from '@/api/statistics'
 import { ElMessage } from 'element-plus'
 import { User, OfficeBuilding, Calendar, Star } from '@element-plus/icons-vue'
@@ -172,6 +172,8 @@ const overview = reactive({
 
 const recentActivities = ref([])
 const clubRankings = ref([])
+
+const toArray = (value) => (Array.isArray(value) ? value : [])
 
 // 图表引用
 const memberChartRef = ref(null)
@@ -212,17 +214,26 @@ const loadMyClubs = async () => {
         overview.totalClubs = overviewRes.data.totalClubs || 0
         overview.totalActivities = overviewRes.data.totalActivities || 0
         overview.averageRating = overviewRes.data.averageRating || 0
-        myClubs.value = overviewRes.data.clubs || []
+        myClubs.value = toArray(overviewRes.data.clubs)
       }
     } catch {
-      // 如果统计接口失败，使用我管理的社团接口
-      const res = await getMyCreatedClubs()
-      myClubs.value = res.data || []
+      // 如果统计接口失败，按角色加载可管理社团
+      if (userStore.isAdmin) {
+        const res = await searchClubsAdmin({
+          status: 'APPROVED',
+          page: 0,
+          size: 1000
+        })
+        myClubs.value = toArray(res.data?.content)
+      } else {
+        const res = await getMyManagedClubs()
+        myClubs.value = toArray(res.data)
+      }
       
       // 计算概览数据
       let totalMembers = 0
       let totalActivities = 0
-      let totalRatings = []
+      const totalRatings = []
       
       for (const club of myClubs.value) {
         totalMembers += club.memberCount || 0
@@ -241,7 +252,7 @@ const loadMyClubs = async () => {
     }
     
     // 计算排行榜
-    clubRankings.value = [...myClubs.value].sort((a, b) => 
+    clubRankings.value = toArray(myClubs.value).slice().sort((a, b) => 
       (b.averageRating || 0) - (a.averageRating || 0) || (b.feedbackCount || 0) - (a.feedbackCount || 0)
     )
     
@@ -262,7 +273,7 @@ const loadClubStats = async () => {
       getClubActivities(selectedClubId.value)
     ])
     
-    const activities = activitiesRes.data?.content || activitiesRes.data || []
+    const activities = toArray(activitiesRes.data?.content ?? activitiesRes.data)
     recentActivities.value = activities.slice(0, 5)
     
     // 渲染图表

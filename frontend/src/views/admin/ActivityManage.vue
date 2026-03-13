@@ -22,7 +22,7 @@
         <el-table-column label="活动信息" min-width="250">
           <template #default="{ row }">
             <div class="activity-cell">
-              <img :src="row.coverImage || '/default-cover.jpg'" class="cover-thumb" />
+              <img :src="row.coverImage || '/default-cover.svg'" class="cover-thumb" />
               <div class="activity-info">
                 <h4>{{ row.title }}</h4>
                 <span class="club-name">{{ row.clubName }}</span>
@@ -201,7 +201,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import { getMyCreatedClubs } from '@/api/club'
+import { getMyManagedClubs, searchClubsAdmin } from '@/api/club'
 import { 
   getClubActivities, 
   createActivity, 
@@ -263,10 +263,28 @@ const formatDateTime = (dateStr) => {
   })
 }
 
+const formatLocalDateTime = (date) => {
+  if (!date) return null
+  const d = date instanceof Date ? date : new Date(date)
+  const pad = (n) => String(n).padStart(2, '0')
+
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+}
+
 const loadMyClubs = async () => {
   try {
-    const res = await getMyCreatedClubs()
-    myClubs.value = res.data || []
+    if (userStore.isAdmin) {
+      const res = await searchClubsAdmin({
+        status: 'APPROVED',
+        page: 0,
+        size: 1000
+      })
+      myClubs.value = res.data?.content || []
+    } else {
+      const res = await getMyManagedClubs()
+      myClubs.value = res.data || []
+    }
+
     if (myClubs.value.length > 0 && !selectedClubId.value) {
       selectedClubId.value = myClubs.value[0].id
       loadActivities()
@@ -394,9 +412,9 @@ const saveActivity = async () => {
   try {
     const data = {
       ...activityForm,
-      startTime: activityForm.startTime?.toISOString(),
-      endTime: activityForm.endTime?.toISOString(),
-      registrationDeadline: activityForm.registrationDeadline?.toISOString(),
+      startTime: formatLocalDateTime(activityForm.startTime),
+      endTime: formatLocalDateTime(activityForm.endTime),
+      registrationDeadline: formatLocalDateTime(activityForm.registrationDeadline),
       maxParticipants: activityForm.maxParticipants || null
     }
     

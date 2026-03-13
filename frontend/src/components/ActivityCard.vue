@@ -44,29 +44,37 @@ const props = defineProps({
 
 defineEmits(['click'])
 
-const defaultCover = '/default-cover.jpg'
+const defaultCover = '/default-cover.svg'
+
+const statusMap = {
+  DRAFT: { text: '草稿', type: 'info' },
+  PUBLISHED: { text: '报名中', type: 'success' },
+  REGISTRATION_CLOSED: { text: '报名截止', type: 'warning' },
+  ONGOING: { text: '进行中', type: 'warning' },
+  COMPLETED: { text: '已结束', type: 'info' },
+  CANCELLED: { text: '已取消', type: 'danger' }
+}
+
+const statusMetaByTime = (activity) => {
+  const now = new Date()
+  const start = new Date(activity.startTime)
+  const end = new Date(activity.endTime)
+  const regEnd = new Date(activity.registrationDeadline)
+
+  if (now < regEnd) return { text: '报名中', type: 'success' }
+  if (now < start) return { text: '即将开始', type: 'info' }
+  if (now >= start && now <= end) return { text: '进行中', type: 'warning' }
+  return { text: '已结束', type: 'info' }
+}
 
 const statusType = computed(() => {
-  const now = new Date()
-  const start = new Date(props.activity.startTime)
-  const end = new Date(props.activity.endTime)
-  const regEnd = new Date(props.activity.registrationDeadline)
-  
-  if (now < regEnd) return 'success'
-  if (now >= start && now <= end) return 'warning'
-  return 'info'
+  const meta = statusMap[props.activity.status] || statusMetaByTime(props.activity)
+  return meta.type
 })
 
 const statusText = computed(() => {
-  const now = new Date()
-  const start = new Date(props.activity.startTime)
-  const end = new Date(props.activity.endTime)
-  const regEnd = new Date(props.activity.registrationDeadline)
-  
-  if (now < regEnd) return '报名中'
-  if (now < start) return '即将开始'
-  if (now >= start && now <= end) return '进行中'
-  return '已结束'
+  const meta = statusMap[props.activity.status] || statusMetaByTime(props.activity)
+  return meta.text
 })
 
 const formatDateTime = (dateStr) => {

@@ -5,7 +5,7 @@
       <el-card class="header-card">
         <div class="activity-header">
           <div class="cover-section">
-            <img :src="activity.coverImage || '/default-cover.jpg'" alt="活动封面" class="cover-image" />
+            <img :src="activity.coverImage || '/default-cover.svg'" alt="活动封面" class="cover-image" />
           </div>
           <div class="info-section">
             <div class="status-row">
@@ -199,28 +199,30 @@ const participants = ref([])
 const participantsLoading = ref(false)
 const feedbacks = ref([])
 
-const getStatusType = (activity) => {
-  const now = new Date()
-  const start = new Date(activity.startTime)
-  const end = new Date(activity.endTime)
-  const regEnd = new Date(activity.registrationDeadline)
-  
-  if (now < regEnd) return 'success'
-  if (now >= start && now <= end) return 'warning'
-  return 'info'
+const statusMap = {
+  DRAFT: { text: '草稿', type: 'info' },
+  PUBLISHED: { text: '报名中', type: 'success' },
+  REGISTRATION_CLOSED: { text: '报名截止', type: 'warning' },
+  ONGOING: { text: '进行中', type: 'warning' },
+  COMPLETED: { text: '已结束', type: 'info' },
+  CANCELLED: { text: '已取消', type: 'danger' }
 }
 
-const getStatusText = (activity) => {
+const getStatusMetaByTime = (activity) => {
   const now = new Date()
   const start = new Date(activity.startTime)
   const end = new Date(activity.endTime)
   const regEnd = new Date(activity.registrationDeadline)
-  
-  if (now < regEnd) return '报名中'
-  if (now < start) return '即将开始'
-  if (now >= start && now <= end) return '进行中'
-  return '已结束'
+
+  if (now < regEnd) return { text: '报名中', type: 'success' }
+  if (now < start) return { text: '即将开始', type: 'info' }
+  if (now >= start && now <= end) return { text: '进行中', type: 'warning' }
+  return { text: '已结束', type: 'info' }
 }
+
+const getStatusType = (activity) => (statusMap[activity.status] || getStatusMetaByTime(activity)).type
+
+const getStatusText = (activity) => (statusMap[activity.status] || getStatusMetaByTime(activity)).text
 
 const formatDateTime = (dateStr) => {
   if (!dateStr) return '-'
@@ -234,22 +236,35 @@ const formatDateTime = (dateStr) => {
 }
 
 const isRegistered = computed(() => {
-  if (!userStore.user || !participants.value.length) return false
+  if (!activity.value || !userStore.user) return false
+  if (typeof activity.value.isRegistered === 'boolean') {
+    return activity.value.isRegistered
+  }
   return participants.value.some(p => p.userId === userStore.user.id)
 })
 
 const isCheckedIn = computed(() => {
-  if (!userStore.user || !participants.value.length) return false
+  if (!activity.value || !userStore.user) return false
+  if (typeof activity.value.isCheckedIn === 'boolean') {
+    return activity.value.isCheckedIn
+  }
   const reg = participants.value.find(p => p.userId === userStore.user.id)
-  return reg && reg.checkedIn
+  return !!(reg && reg.checkedIn)
 })
 
 const canRegister = computed(() => {
   if (!activity.value) return false
+
+  // 与后端报名约束保持一致：必须审批通过且为发布状态
+  if (activity.value.approvalStatus !== 'APPROVED') return false
+  if (activity.value.status !== 'PUBLISHED') return false
+
   const now = new Date()
   const regEnd = new Date(activity.value.registrationDeadline)
   const maxP = activity.value.maxParticipants
-  return now < regEnd && (!maxP || participants.value.length < maxP)
+  const registrationCount = activity.value.registrationCount ?? activity.value.currentParticipants ?? 0
+
+  return now < regEnd && (!maxP || registrationCount < maxP)
 })
 
 const canFeedback = computed(() => {
@@ -300,6 +315,8 @@ const handleRegister = async () => {
     loadActivityDetail()
   } catch (e) {
     console.error('报名失败', e)
+    const message = e?.response?.data?.message || e?.message || '报名失败'
+    ElMessage.error(message)
   } finally {
     registering.value = false
   }
